@@ -4,6 +4,7 @@ var CAN_SAISIE = true;
 const STORE = { engins: [], personnel: [], saisies: [], affectations: [], pannes: [], maintenance: [], carburant: [], tarifs: [], pneuTarifs: [], users: [], budgets: [] };
 const charts = {};
 var _pneuMarqueMap = {};
+var HEURES_OUVERTURE = 16; // heures d'ouverture par engin et par jour (base du taux de disponibilité)
 function uid() { return '_' + Math.random().toString(36).substr(2, 9); }
 // --- FIREBASE HELPERS ---
 var FB_DOC = 'parc_engins';
@@ -1400,10 +1401,14 @@ function computeKPIs() {
     if (s.panne > 0) totalPannesCount++;
   });
   var totalHours = totalFonct + totalPanne + totalArret || 1;
+  // Temps d'ouverture = 16h par engin et par jour (une saisie = un engin sur une journée)
+  var totalOuverture = HEURES_OUVERTURE * STORE.saisies.length;
+  var dispo = totalOuverture > 0 ? Math.max(0, Math.min(100, ((totalOuverture - totalPanne - totalArret) / totalOuverture) * 100)) : 0;
+  var util = totalOuverture > 0 ? Math.max(0, Math.min(100, (totalFonct / totalOuverture) * 100)) : 0;
   return {
     totalE: totalE, actifs: actifs, pannes: pannes, maint: maint,
-    dispo: ((totalFonct / totalHours) * 100).toFixed(1),
-    util: ((totalFonct / totalHours) * 100).toFixed(1),
+    dispo: dispo.toFixed(1),
+    util: util.toFixed(1),
     mtbf: totalPannesCount ? (totalFonct / totalPannesCount).toFixed(1) : 0,
     mttr: totalPannesCount ? (totalPanne / totalPannesCount).toFixed(1) : 0
   };
@@ -1540,11 +1545,11 @@ function updateCharts() {
   var labels = STORE.engins.map(function(e) { return e.designation.substring(0,12); });
   var dispoData = STORE.engins.map(function(e) {
     var rows = STORE.saisies.filter(function(s) { return s.enginId === e.id; });
-    var fonct = rows.reduce(function(a,s) { return a + (s.heuresFonct||s.duree||0); }, 0);
     var panne = rows.reduce(function(a,s) { return a + (s.panne||0); }, 0);
     var arret = rows.reduce(function(a,s) { return a + (s.arret||0); }, 0);
-    var tot = fonct + panne + arret || 1;
-    return ((fonct/tot)*100).toFixed(1);
+    var ouverture = HEURES_OUVERTURE * rows.length;
+    if (ouverture <= 0) return '0.0';
+    return Math.max(0, Math.min(100, ((ouverture - panne - arret)/ouverture)*100)).toFixed(1);
   });
   var panneData = STORE.engins.map(function(e) { return STORE.saisies.filter(function(s) { return s.enginId === e.id && s.panne > 0; }).length; });
   var gasoilData = STORE.engins.map(function(e) { return STORE.saisies.filter(function(s) { return s.enginId === e.id; }).reduce(function(a,s) { return a + (s.gasoil||0); }, 0); });
