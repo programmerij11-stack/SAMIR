@@ -1454,18 +1454,16 @@ function updateDashFlotteTable() {
   STORE.saisies.forEach(function(s) {
     var eng = STORE.engins.find(function(e){ return e.id===s.enginId; });
     if (!eng) return;
-    if (!byEngin[s.enginId]) byEngin[s.enginId] = {eng:eng, hm:0, td:0, tu:0, gas:0, hui:0};
+    if (!byEngin[s.enginId]) byEngin[s.enginId] = {eng:eng, hm:0, arret:0, jours:0, gas:0, hui:0};
     var g = byEngin[s.enginId];
     // HM = différence compteur ou heures fonctionnement
     var cF=+(s.compteurFin||0), cD=+(s.compteurDebut||0);
     var hm = (cD>0 && cF>cD) ? (cF-cD) : Math.max(0, +(s.difference||s.duree||s.heuresFonct||0));
-    // TD = heures de panne/arrêt
-    var td = +(s.heurePanne||s.panne||0) + +(s.heureArret||s.arret||0);
-    // TU = HM - TD (temps utilisation effectif)
-    var tu = Math.max(0, hm - td);
-    g.hm  += hm;
-    g.td  += td;
-    g.tu  += tu;
+    // Arrêt = heures de panne/arrêt
+    var arret = +(s.heurePanne||s.panne||0) + +(s.heureArret||s.arret||0);
+    g.hm    += hm;
+    g.arret += arret;
+    g.jours += 1; // 1 saisie = 1 journée d'ouverture
     g.gas += +(s.gasoil||0);
     if (s.huiles && s.huiles.length) {
       s.huiles.forEach(function(h){ g.hui += +(h.qte||0); });
@@ -1473,7 +1471,7 @@ function updateDashFlotteTable() {
       g.hui += (+(s.hv68||0))+(+(s.s30||0))+(+(s.s50||0))+(+(s.w15w40||0))+(+(s.autran||0))+(+(s.w85w140||0));
     }
   });
-  function trgColor(val) {
+  function dispoColor(val) {
     if (val === null) return '#888';
     return val >= 85 ? '#27ae60' : val >= 70 ? '#f39c12' : '#c0392b';
   }
@@ -1487,27 +1485,30 @@ function updateDashFlotteTable() {
       tfoot.innerHTML = '';
       return;
     }
-    var totHm=0, totTd=0, totTu=0, totGas=0, totHui=0;
+    var totHm=0, totTo=0, totArret=0, totGas=0, totHui=0;
     tbody.innerHTML = items.map(function(x, i) {
-      var trg = x.hm > 0 ? +Math.min(100, (x.tu / x.hm * 100)).toFixed(1) : null;
-      totHm += x.hm; totTd += x.td; totTu += x.tu; totGas += x.gas; totHui += x.hui;
+      // TO = temps d'ouverture = 16h × nombre de jours saisis
+      var to = HEURES_OUVERTURE * x.jours;
+      // Dispo % = (TO - Arrêt) / TO
+      var dispo = to > 0 ? +Math.max(0, Math.min(100, ((to - x.arret) / to * 100))).toFixed(1) : null;
+      totHm += x.hm; totTo += to; totArret += x.arret; totGas += x.gas; totHui += x.hui;
       return '<tr style="background:'+(i%2===0?'transparent':'rgba(255,255,255,.04)')+'">'
         +'<td style="font-weight:600;font-size:.82rem">'+x.eng.designation+'</td>'
         +'<td class="text-center" style="color:#d4af37">'+x.hm.toFixed(1)+'</td>'
-        +'<td class="text-center" style="color:#e74c3c">'+x.td.toFixed(1)+'</td>'
-        +'<td class="text-center" style="color:#27ae60">'+x.tu.toFixed(1)+'</td>'
-        +'<td class="text-center" style="color:'+trgColor(trg)+';font-weight:700">'+(trg!==null?trg+'%':'—')+'</td>'
+        +'<td class="text-center" style="color:#3498db">'+to.toFixed(1)+'</td>'
+        +'<td class="text-center" style="color:#e74c3c">'+x.arret.toFixed(1)+'</td>'
+        +'<td class="text-center" style="color:'+dispoColor(dispo)+';font-weight:700">'+(dispo!==null?dispo+'%':'—')+'</td>'
         +'<td class="text-center" style="color:#e67e22">'+x.gas.toFixed(0)+'</td>'
         +'<td class="text-center" style="color:#9b59b6">'+x.hui.toFixed(1)+'</td>'
         +'</tr>';
     }).join('');
-    var totTrg = totHm > 0 ? +Math.min(100, (totTu / totHm * 100)).toFixed(1) : null;
+    var totDispo = totTo > 0 ? +Math.max(0, Math.min(100, ((totTo - totArret) / totTo * 100))).toFixed(1) : null;
     tfoot.innerHTML = '<tr style="border-top:2px solid '+accentColor+'">'
       +'<td style="color:'+accentColor+';font-weight:800;font-size:.82rem">TOTAL</td>'
       +'<td class="text-center" style="color:#d4af37;font-weight:700">'+totHm.toFixed(1)+'</td>'
-      +'<td class="text-center" style="color:#e74c3c;font-weight:700">'+totTd.toFixed(1)+'</td>'
-      +'<td class="text-center" style="color:#27ae60;font-weight:700">'+totTu.toFixed(1)+'</td>'
-      +'<td class="text-center" style="color:'+trgColor(totTrg)+';font-weight:800">'+(totTrg!==null?totTrg+'%':'—')+'</td>'
+      +'<td class="text-center" style="color:#3498db;font-weight:700">'+totTo.toFixed(1)+'</td>'
+      +'<td class="text-center" style="color:#e74c3c;font-weight:700">'+totArret.toFixed(1)+'</td>'
+      +'<td class="text-center" style="color:'+dispoColor(totDispo)+';font-weight:800">'+(totDispo!==null?totDispo+'%':'—')+'</td>'
       +'<td class="text-center" style="color:#e67e22;font-weight:700">'+totGas.toFixed(0)+'</td>'
       +'<td class="text-center" style="color:#9b59b6;font-weight:700">'+totHui.toFixed(1)+'</td>'
       +'</tr>';
@@ -1520,16 +1521,16 @@ function updateDashFlotteTable() {
     var items = Object.values(byEngin).filter(function(x){ return filterFn(x.eng); });
     if (!items.length) return;
     var labels = items.map(function(x){ return x.eng.designation; });
-    var dtData = items.map(function(x){ return +x.td.toFixed(1); });
-    var tuData = items.map(function(x){ return +x.tu.toFixed(1); });
-    var trgData = items.map(function(x){ return x.hm>0 ? +Math.min(100,(x.tu/x.hm*100)).toFixed(1) : 0; });
+    var toData = items.map(function(x){ return +(HEURES_OUVERTURE*x.jours).toFixed(1); });
+    var arretData = items.map(function(x){ return +x.arret.toFixed(1); });
+    var dispoData = items.map(function(x){ var to=HEURES_OUVERTURE*x.jours; return to>0 ? +Math.max(0,Math.min(100,((to-x.arret)/to*100))).toFixed(1) : 0; });
     c._chart = new Chart(c.getContext('2d'), {
       data: {
         labels: labels,
         datasets: [
-          { type:'bar', label:'DT (h)', data:dtData, backgroundColor:colors.dt, borderRadius:4, yAxisID:'y' },
-          { type:'bar', label:'TU (h)', data:tuData, backgroundColor:colors.tu, borderRadius:4, yAxisID:'y' },
-          { type:'line', label:'TRG (%)', data:trgData, borderColor:colors.trg, backgroundColor:'transparent', borderWidth:2, pointRadius:4, pointBackgroundColor:colors.trg, yAxisID:'y2', tension:0.3 }
+          { type:'bar', label:'TO (h)', data:toData, backgroundColor:colors.tu, borderRadius:4, yAxisID:'y' },
+          { type:'bar', label:'Arrêt (h)', data:arretData, backgroundColor:colors.dt, borderRadius:4, yAxisID:'y' },
+          { type:'line', label:'Dispo (%)', data:dispoData, borderColor:colors.trg, backgroundColor:'transparent', borderWidth:2, pointRadius:4, pointBackgroundColor:colors.trg, yAxisID:'y2', tension:0.3 }
         ]
       },
       options: {
@@ -1541,7 +1542,7 @@ function updateDashFlotteTable() {
         scales:{
           x:{ ticks:{ font:{size:9}, color:'#aaa' }, grid:{ color:'rgba(255,255,255,.05)' } },
           y:{ beginAtZero:true, position:'left', ticks:{ font:{size:9}, color:'#aaa' }, grid:{ color:'rgba(255,255,255,.05)' }, title:{ display:true, text:'Heures', font:{size:8}, color:'#888' } },
-          y2:{ beginAtZero:true, max:100, position:'right', ticks:{ font:{size:9}, color:colors.trg, callback:function(v){ return v+'%'; } }, grid:{ drawOnChartArea:false }, title:{ display:true, text:'TRG %', font:{size:8}, color:colors.trg } }
+          y2:{ beginAtZero:true, max:100, position:'right', ticks:{ font:{size:9}, color:colors.trg, callback:function(v){ return v+'%'; } }, grid:{ drawOnChartArea:false }, title:{ display:true, text:'Dispo %', font:{size:8}, color:colors.trg } }
         }
       }
     });
