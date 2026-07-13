@@ -245,6 +245,11 @@
   <main class="main-content" id="mainContent">
     <div class="topbar"><button class="btn btn-outline-light btn-sm" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><div><span id="currentDate" class="text-muted small"></span> | <span id="userName" class="fw-bold"></span></div><div style="display:flex;align-items:center;gap:.5rem;margin-left:auto"><button class="btn btn-sm" style="background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);color:#d4af37" onclick="exportJSON()" title="Exporter les données en JSON"><i class="bi bi-download"></i> Export</button><button class="btn btn-sm" style="background:rgba(72,187,120,.12);border:1px solid rgba(72,187,120,.35);color:#48bb78" onclick="document.getElementById('importFile').click()" title="Importer des données depuis un fichier JSON"><i class="bi bi-upload"></i> Import</button><button class="btn btn-sm" style="background:rgba(220,53,69,.15);border:1px solid rgba(220,53,69,.5);color:#ff6b6b;font-weight:600" onclick="doLogout()" title="Se déconnecter et revenir à l'écran de connexion"><i class="bi bi-box-arrow-right"></i> Quitter</button><img src="logo.png.png" alt="Logo" style="height:52px;width:auto;object-fit:contain"><span style="font-size:1.35rem;font-weight:800;letter-spacing:.12em;color:#f5a623;text-shadow:0 0 12px rgba(245,166,35,.4)">MANAGEM</span></div></div>
     <div id="dashboard" class="section active">
+      <div class="d-flex align-items-center gap-2 mb-3" style="flex-wrap:wrap">
+        <label for="inpHeuresOuverture" class="mb-0" style="font-size:.8rem;color:#d4af37;font-weight:600"><i class="bi bi-clock-history"></i> Temps d'ouverture (h/jour)</label>
+        <input type="number" id="inpHeuresOuverture" min="1" max="24" step="0.5" onchange="setHeuresOuverture(this.value)" class="form-control form-control-sm" style="width:90px" />
+        <span class="text-muted" style="font-size:.72rem">Base de calcul du taux de disponibilité</span>
+      </div>
       <div class="row g-3 mb-4">
         <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiTotalEngins">0</div><div class="kpi-label">Total Engins</div></div></div>
         <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value text-success" id="kpiActifs">0</div><div class="kpi-label">En service</div></div></div>

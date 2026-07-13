@@ -4,7 +4,22 @@ var CAN_SAISIE = true;
 const STORE = { engins: [], personnel: [], saisies: [], affectations: [], pannes: [], maintenance: [], carburant: [], tarifs: [], pneuTarifs: [], users: [], budgets: [] };
 const charts = {};
 var _pneuMarqueMap = {};
-var HEURES_OUVERTURE = 16; // heures d'ouverture par engin et par jour (base du taux de disponibilité)
+// heures d'ouverture par engin et par jour (base du taux de disponibilité), configurable et mémorisée
+var HEURES_OUVERTURE = (function() {
+  var v = parseFloat(localStorage.getItem('heuresOuverture'));
+  return (v && v > 0) ? v : 16;
+})();
+function setHeuresOuverture(val) {
+  var v = parseFloat(val);
+  if (!v || v <= 0) v = 16;
+  if (v > 24) v = 24;
+  HEURES_OUVERTURE = v;
+  localStorage.setItem('heuresOuverture', String(v));
+  var inp = document.getElementById('inpHeuresOuverture');
+  if (inp) inp.value = v;
+  updateDashboard();
+  if (typeof updateRapports === 'function') updateRapports();
+}
 function uid() { return '_' + Math.random().toString(36).substr(2, 9); }
 // --- FIREBASE HELPERS ---
 var FB_DOC = 'parc_engins';
@@ -1417,6 +1432,8 @@ function computeKPIs() {
 // --- DASHBOARD ---
 function updateDashboard() {
   var k = computeKPIs();
+  var inpHO = document.getElementById('inpHeuresOuverture');
+  if (inpHO && inpHO.value === '') inpHO.value = HEURES_OUVERTURE;
   document.getElementById('kpiTotalEngins').textContent = k.totalE;
   document.getElementById('kpiActifs').textContent = k.actifs;
   document.getElementById('kpiPannes').textContent = k.pannes;
