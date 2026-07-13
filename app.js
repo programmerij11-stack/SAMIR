@@ -1458,15 +1458,18 @@ function updateDashFlotteTable() {
   STORE.saisies.forEach(function(s) {
     var eng = STORE.engins.find(function(e){ return e.id===s.enginId; });
     if (!eng) return;
-    if (!byEngin[s.enginId]) byEngin[s.enginId] = {eng:eng, hm:0, arret:0, jours:0, gas:0, hui:0};
+    if (!byEngin[s.enginId]) byEngin[s.enginId] = {eng:eng, hm:0, arret:0, jours:0, panneH:0, nbPannes:0, gas:0, hui:0};
     var g = byEngin[s.enginId];
     // HM = différence compteur ou heures fonctionnement
     var cF=+(s.compteurFin||0), cD=+(s.compteurDebut||0);
     var hm = (cD>0 && cF>cD) ? (cF-cD) : Math.max(0, +(s.difference||s.duree||s.heuresFonct||0));
-    // Arrêt = heures de panne/arrêt
-    var arret = +(s.heurePanne||s.panne||0) + +(s.heureArret||s.arret||0);
+    // Heures de panne (pour MTTR) et heures d'arrêt
+    var panneH = +(s.heurePanne||s.panne||0);
+    var arret = panneH + +(s.heureArret||s.arret||0);
     g.hm    += hm;
     g.arret += arret;
+    g.panneH += panneH;
+    if (panneH > 0) g.nbPannes += 1;
     g.jours += 1; // 1 saisie = 1 journée d'ouverture
     g.gas += +(s.gasoil||0);
     if (s.huiles && s.huiles.length) {
@@ -1485,34 +1488,46 @@ function updateDashFlotteTable() {
     if (!tbody || !tfoot) return;
     var items = Object.values(byEngin).filter(function(x){ return filterFn(x.eng); });
     if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:14px;font-style:italic;font-size:.78rem;color:#888">Aucune saisie enregistrée</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding:14px;font-style:italic;font-size:.78rem;color:#888">Aucune saisie enregistrée</td></tr>';
       tfoot.innerHTML = '';
       return;
     }
-    var totHm=0, totTo=0, totArret=0, totGas=0, totHui=0;
+    var totHm=0, totTo=0, totArret=0, totPanneH=0, totNbP=0, totGas=0, totHui=0;
     tbody.innerHTML = items.map(function(x, i) {
       // TO = temps d'ouverture = 16h × nombre de jours saisis
       var to = HEURES_OUVERTURE * x.jours;
+      var tempsDispo = Math.max(0, to - x.arret);
       // Dispo % = (TO - Arrêt) / TO
       var dispo = to > 0 ? +Math.max(0, Math.min(100, ((to - x.arret) / to * 100))).toFixed(1) : null;
-      totHm += x.hm; totTo += to; totArret += x.arret; totGas += x.gas; totHui += x.hui;
+      // TU % = HM / Temps disponible
+      var tu = tempsDispo > 0 ? +Math.max(0, Math.min(100, (x.hm / tempsDispo * 100))).toFixed(1) : null;
+      // MTTR = heures de panne / nombre de pannes
+      var mttr = x.nbPannes > 0 ? +(x.panneH / x.nbPannes).toFixed(1) : null;
+      totHm += x.hm; totTo += to; totArret += x.arret; totPanneH += x.panneH; totNbP += x.nbPannes; totGas += x.gas; totHui += x.hui;
       return '<tr style="background:'+(i%2===0?'transparent':'rgba(255,255,255,.04)')+'">'
         +'<td style="font-weight:600;font-size:.82rem">'+x.eng.designation+'</td>'
         +'<td class="text-center" style="color:#d4af37">'+x.hm.toFixed(1)+'</td>'
         +'<td class="text-center" style="color:#3498db">'+to.toFixed(1)+'</td>'
         +'<td class="text-center" style="color:#e74c3c">'+x.arret.toFixed(1)+'</td>'
         +'<td class="text-center" style="color:'+dispoColor(dispo)+';font-weight:700">'+(dispo!==null?dispo+'%':'—')+'</td>'
+        +'<td class="text-center" style="color:'+dispoColor(tu)+';font-weight:700">'+(tu!==null?tu+'%':'—')+'</td>'
+        +'<td class="text-center" style="color:#e67e22">'+(mttr!==null?mttr+'h':'—')+'</td>'
         +'<td class="text-center" style="color:#e67e22">'+x.gas.toFixed(0)+'</td>'
         +'<td class="text-center" style="color:#9b59b6">'+x.hui.toFixed(1)+'</td>'
         +'</tr>';
     }).join('');
     var totDispo = totTo > 0 ? +Math.max(0, Math.min(100, ((totTo - totArret) / totTo * 100))).toFixed(1) : null;
+    var totTempsDispo = Math.max(0, totTo - totArret);
+    var totTu = totTempsDispo > 0 ? +Math.max(0, Math.min(100, (totHm / totTempsDispo * 100))).toFixed(1) : null;
+    var totMttr = totNbP > 0 ? +(totPanneH / totNbP).toFixed(1) : null;
     tfoot.innerHTML = '<tr style="border-top:2px solid '+accentColor+'">'
       +'<td style="color:'+accentColor+';font-weight:800;font-size:.82rem">TOTAL</td>'
       +'<td class="text-center" style="color:#d4af37;font-weight:700">'+totHm.toFixed(1)+'</td>'
       +'<td class="text-center" style="color:#3498db;font-weight:700">'+totTo.toFixed(1)+'</td>'
       +'<td class="text-center" style="color:#e74c3c;font-weight:700">'+totArret.toFixed(1)+'</td>'
       +'<td class="text-center" style="color:'+dispoColor(totDispo)+';font-weight:800">'+(totDispo!==null?totDispo+'%':'—')+'</td>'
+      +'<td class="text-center" style="color:'+dispoColor(totTu)+';font-weight:800">'+(totTu!==null?totTu+'%':'—')+'</td>'
+      +'<td class="text-center" style="color:#e67e22;font-weight:700">'+(totMttr!==null?totMttr+'h':'—')+'</td>'
       +'<td class="text-center" style="color:#e67e22;font-weight:700">'+totGas.toFixed(0)+'</td>'
       +'<td class="text-center" style="color:#9b59b6;font-weight:700">'+totHui.toFixed(1)+'</td>'
       +'</tr>';
