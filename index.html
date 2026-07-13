@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expert en Gestion de Maintenance et Travaux Minières</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root{--primary:#1a0e00;--accent:#d4af37;--bg-dark:#050505;--bg-card:#0f0f08;--text-light:#f0e8d0}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg-dark);color:var(--text-light);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;background-image:radial-gradient(ellipse at 20% 50%,rgba(212,175,55,.04) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(212,175,55,.04) 0%,transparent 60%)}
+    .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a0e00 0%,#050505 50%,#0a0800 100%)}
+    .login-card{background:var(--bg-card);padding:2rem 2.5rem 2.5rem;border-radius:1rem;box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 40px rgba(212,175,55,.08);width:100%;max-width:520px;border:1px solid rgba(212,175,55,.25)}
+    .login-card h2{color:var(--accent);margin-bottom:1.5rem;text-align:center;font-weight:700}
+    .form-control,.form-select{background:#0a0900;border:1px solid rgba(212,175,55,.25);color:var(--text-light)}
+    .form-control:focus,.form-select:focus{background:#0a0900;border-color:var(--accent);color:var(--text-light);box-shadow:0 0 0 .15rem rgba(212,175,55,.25)}
+    .btn-primary{background:linear-gradient(135deg,#d4af37,#b8962e);border:none;color:#0a0800;font-weight:700;letter-spacing:.02em}.btn-primary:hover{background:linear-gradient(135deg,#e8c84a,#c9a030)}
+    .sidebar{width:260px;background:#080800;min-height:100vh;position:fixed;left:0;top:0;border-right:1px solid rgba(212,175,55,.2);transition:transform .3s;z-index:1000}
+    .sidebar-brand{padding:1.5rem;border-bottom:1px solid rgba(212,175,55,.2);display:flex;align-items:center;gap:.75rem}
+    .sidebar-brand i{font-size:1.5rem;color:var(--accent)}.sidebar-brand span{font-weight:700;font-size:1.1rem}
+    .nav-link{color:#9a8f6a;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.75rem;transition:all .2s;cursor:pointer}
+    .nav-link:hover,.nav-link.active{background:rgba(212,175,55,.1);color:var(--accent);border-right:3px solid var(--accent)}
+    .main-content{margin-left:260px;padding:1.5rem;min-height:100vh}.main-content.expanded{margin-left:0}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid rgba(212,175,55,.2)}
+    .kpi-card{background:var(--bg-card);border-radius:.75rem;padding:1.25rem;border-left:4px solid var(--accent);box-shadow:0 4px 20px rgba(0,0,0,.5),0 0 12px rgba(212,175,55,.07)}
+    .kpi-value{font-size:1.75rem;font-weight:700;color:var(--accent)}.kpi-label{font-size:.85rem;color:#94a3b8;text-transform:uppercase}
+    .card-dark{background:var(--bg-card);border:1px solid rgba(212,175,55,.18);border-radius:.75rem}
+    .table-dark{--bs-table-bg:transparent;--bs-table-color:var(--text-light);--bs-table-border-color:rgba(212,175,55,.15)}
+    .table-dark thead th{color:#c9a84c;font-weight:600;font-size:.85rem;border-bottom:2px solid rgba(212,175,55,.3)}
+    .section{display:none}.section.active{display:block;animation:fadeIn .4s}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .badge-status{padding:.35em .75em;border-radius:.5rem;font-size:.8rem;font-weight:500}
+    .status-service{background:rgba(72,187,120,.15);color:#48bb78}.status-panne{background:rgba(245,101,101,.15);color:#f56565}
+    .status-maintenance{background:rgba(236,201,75,.15);color:#ecc94b}.status-magasin{background:rgba(160,174,192,.15);color:#a0aec0}
+    .section-title{font-size:1rem;font-weight:700;color:var(--accent);margin:1.5rem 0 .75rem;padding-bottom:.5rem;border-bottom:1px solid rgba(212,175,55,.25);display:flex;align-items:center;gap:.5rem}
+    .btn-sm-action{padding:.25rem .5rem;font-size:.8rem}
+    .calc-box{background:var(--bg-card);border:1px solid rgba(212,175,55,.18);border-radius:.75rem;padding:1.25rem;text-align:center}
+    .calc-box .value{font-size:1.5rem;font-weight:700;color:var(--accent)}.calc-box .label{font-size:.8rem;color:#94a3b8;margin-top:.25rem}
+    .chart-container{position:relative;height:220px}
+    @media(max-width:768px){.sidebar{transform:translateX(-260px)}.sidebar.show{transform:translateX(0)}.main-content{margin-left:0}}
+    .table-dark tbody tr:hover{background:rgba(212,175,55,.05)!important}
+    #loadingOverlay{position:fixed;inset:0;background:rgba(5,5,5,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+    .firebase-spinner{width:48px;height:48px;border:4px solid rgba(212,175,55,.2);border-top-color:#d4af37;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #fbStatus{position:fixed;bottom:1rem;right:1rem;font-size:.75rem;padding:.35rem .75rem;border-radius:.5rem;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.25);color:#d4af37;z-index:9998;display:none}
+    body.no-saisie .saisie-only{display:none!important}
+  </style>
+</head>
+<body>
+<div id="loadingOverlay">
+  <div class="firebase-spinner"></div>
+  <div style="color:#d4af37;font-weight:600">Connexion à Firebase...</div>
+  <div style="color:#9a8f6a;font-size:.85rem">Chargement des données</div>
+</div>
+<div id="fbStatus"></div>
+<div id="loginScreen" class="login-screen"><div class="login-card">
+  <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px">
+    <!-- ══ BANNIÈRE MINING ══ -->
+    <svg width="100%" height="auto" viewBox="0 0 340 148" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 6px 28px rgba(212,175,55,.55));display:block">
+      <defs>
+        <linearGradient id="lgGold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fce88d"/><stop offset="50%" stop-color="#d4af37"/><stop offset="100%" stop-color="#8a6010"/>
+        </linearGradient>
+        <linearGradient id="lgDark" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#1c1600"/><stop offset="100%" stop-color="#060500"/>
+        </linearGradient>
+        <linearGradient id="lgMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#2a2200"/><stop offset="100%" stop-color="#0e0b00"/>
+        </linearGradient>
+      </defs>
+      <!-- Fond + cadre -->
+      <rect x="1" y="1" width="338" height="146" rx="10" fill="url(#lgDark)"/>
+      <rect x="1" y="1" width="338" height="146" rx="10" fill="none" stroke="url(#lgGold)" stroke-width="2.8"/>
+      <rect x="5" y="5" width="330" height="138" rx="7" fill="none" stroke="#d4af37" stroke-width="0.6" opacity="0.35"/>
+      <!-- Coins décoratifs -->
+      <polygon points="8,8 13,4 18,8 13,12" fill="#d4af37" opacity="0.8"/>
+      <polygon points="332,8 337,4 342,8 337,12" fill="#d4af37" opacity="0.8"/>
+      <polygon points="8,140 13,136 18,140 13,144" fill="#d4af37" opacity="0.8"/>
+      <polygon points="332,140 337,136 342,140 337,144" fill="#d4af37" opacity="0.8"/>
+
+      <!-- Sol / terrain minier -->
+      <path d="M 0 116 Q 85 108 170 113 Q 255 118 340 109 L 340 148 L 0 148 Z" fill="#140f00" opacity="0.85"/>
+      <line x1="8" y1="114" x2="332" y2="114" stroke="#d4af37" stroke-width="0.7" stroke-dasharray="4,6" opacity="0.3"/>
+
+      <!-- ════ PELLE MÉCANIQUE (gauche) ════ -->
+      <!-- Chenille -->
+      <rect x="12" y="104" width="60" height="11" rx="5.5" fill="#3a2c00" stroke="url(#lgGold)" stroke-width="1.4"/>
+      <circle cx="19" cy="109.5" r="4.2" fill="#0c0900" stroke="#d4af37" stroke-width="1.1"/>
+      <circle cx="30" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="41" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="52" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="63" cy="109.5" r="4.2" fill="#0c0900" stroke="#d4af37" stroke-width="1.1"/>
+      <!-- Corps bas -->
+      <rect x="16" y="92" width="52" height="14" rx="3" fill="url(#lgMetal)" stroke="url(#lgGold)" stroke-width="1.4"/>
+      <!-- Cabine -->
+      <rect x="18" y="74" width="26" height="19" rx="4" fill="url(#lgMetal)" stroke="url(#lgGold)" stroke-width="1.6"/>
+      <rect x="20" y="76.5" width="9" height="6" rx="1.5" fill="#0a1e12" stroke="#d4af37" stroke-width="0.6" opacity="0.9"/>
+      <rect x="31" y="76.5" width="9" height="6" rx="1.5" fill="#0a1e12" stroke="#d4af37" stroke-width="0.6" opacity="0.9"/>
+      <!-- Flèche boom -->
+      <line x1="42" y1="80" x2="90" y2="56" stroke="url(#lgGold)" stroke-width="5.5" stroke-linecap="round"/>
+      <line x1="42" y1="80" x2="90" y2="56" stroke="#fce88d" stroke-width="1.5" stroke-linecap="round" opacity="0.35"/>
+      <!-- Vérin boom -->
+      <line x1="44" y1="83" x2="70" y2="67" stroke="#b89020" stroke-width="2.2" stroke-linecap="round" opacity="0.7"/>
+      <!-- Bras stick -->
+      <line x1="90" y1="56" x2="96" y2="78" stroke="url(#lgGold)" stroke-width="4" stroke-linecap="round"/>
+      <!-- Vérin stick -->
+      <line x1="82" y1="60" x2="88" y2="72" stroke="#b89020" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+      <!-- Godet -->
+      <path d="M 93 77 Q 100 89 107 86 Q 108 78 102 73 Z" fill="url(#lgGold)"/>
+      <!-- Dents godet -->
+      <line x1="97" y1="86" x2="95" y2="93" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="101.5" y1="88" x2="101" y2="95" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="106" y1="86" x2="107" y2="93" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+      <!-- Pivot -->
+      <circle cx="40" cy="84" r="4" fill="url(#lgGold)" stroke="#5a3a00" stroke-width="1"/>
+      <!-- Label PELLE -->
+      <text x="41" y="137" text-anchor="middle" font-family="Arial,sans-serif" font-size="8.5" fill="#d4af37" letter-spacing="2" opacity="0.8">PELLE HYDRAULIQUE</text>
+
+      <!-- ════ TITRE CENTRAL ════ -->
+      <line x1="90" y1="22" x2="250" y2="22" stroke="#d4af37" stroke-width="0.8" opacity="0.5"/>
+      <text x="170" y="36" text-anchor="middle" font-family="'Arial Black',Arial,sans-serif" font-size="12" fill="url(#lgGold)" font-weight="900" letter-spacing="2">EXPERT EN GESTION DE MAINTENANCE</text>
+      <text x="170" y="52" text-anchor="middle" font-family="'Arial Black',Arial,sans-serif" font-size="12" fill="#d4af37" font-weight="900" letter-spacing="2">ET TRAVAUX MINIÈRES</text>
+      <line x1="90" y1="58" x2="250" y2="58" stroke="#d4af37" stroke-width="0.8" opacity="0.5"/>
+      <!-- Sous-titre IJJAI SAMIR -->
+      <text x="170" y="68" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="10" fill="#d4af37" letter-spacing="5" opacity="0.85">✦  IJJAI  SAMIR  ✦</text>
+      <!-- Séparateur vertical gauche -->
+      <line x1="88" y1="15" x2="88" y2="130" stroke="#d4af37" stroke-width="0.6" stroke-dasharray="2,4" opacity="0.3"/>
+      <!-- Séparateur vertical droit -->
+      <line x1="252" y1="15" x2="252" y2="130" stroke="#d4af37" stroke-width="0.6" stroke-dasharray="2,4" opacity="0.3"/>
+
+      <!-- ════ BULLDOZER / TRAX (droite) ════ -->
+      <!-- Chenille -->
+      <rect x="268" y="104" width="60" height="11" rx="5.5" fill="#3a2c00" stroke="url(#lgGold)" stroke-width="1.4"/>
+      <circle cx="275" cy="109.5" r="4.2" fill="#0c0900" stroke="#d4af37" stroke-width="1.1"/>
+      <circle cx="286" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="297" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="308" cy="109.5" r="2.8" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="320" cy="109.5" r="4.2" fill="#0c0900" stroke="#d4af37" stroke-width="1.1"/>
+      <!-- Corps bas bulldozer -->
+      <rect x="272" y="92" width="52" height="14" rx="3" fill="url(#lgMetal)" stroke="url(#lgGold)" stroke-width="1.4"/>
+      <!-- Cabine -->
+      <rect x="285" y="73" width="30" height="20" rx="4" fill="url(#lgMetal)" stroke="url(#lgGold)" stroke-width="1.6"/>
+      <rect x="287" y="75.5" width="11" height="7" rx="1.5" fill="#0a1e12" stroke="#d4af37" stroke-width="0.6" opacity="0.9"/>
+      <rect x="301" y="75.5" width="11" height="7" rx="1.5" fill="#0a1e12" stroke="#d4af37" stroke-width="0.6" opacity="0.9"/>
+      <!-- Tuyau d'échappement -->
+      <rect x="312" y="65" width="4" height="12" rx="2" fill="url(#lgGold)"/>
+      <path d="M 311 65 Q 314 59 317 64" fill="none" stroke="#777" stroke-width="1.5" opacity="0.45"/>
+      <!-- Lame avant (blade) GOLD -->
+      <path d="M 259 88 L 259 112 Q 264 117 268 112 L 268 88 Q 264 83 259 88 Z" fill="url(#lgGold)" stroke="#6a4600" stroke-width="1.2"/>
+      <!-- Bras de lame (push arms) -->
+      <line x1="268" y1="92" x2="278" y2="93" stroke="#b89020" stroke-width="2.8" stroke-linecap="round"/>
+      <line x1="268" y1="105" x2="278" y2="105" stroke="#b89020" stroke-width="2.8" stroke-linecap="round"/>
+      <!-- Ripper arrière -->
+      <path d="M 324 92 L 330 85 L 330 92 Z" fill="url(#lgGold)"/>
+      <line x1="327" y1="92" x2="330" y2="106" stroke="url(#lgGold)" stroke-width="3" stroke-linecap="round"/>
+      <!-- Label TRAX -->
+      <text x="298" y="137" text-anchor="middle" font-family="Arial,sans-serif" font-size="8.5" fill="#d4af37" letter-spacing="2" opacity="0.8">BULLDOZER TRAX</text>
+    </svg>
+  </div>
+  <div class="mb-3"><label class="form-label">Identifiant</label><input type="text" id="loginUser" class="form-control" placeholder="Identifiant" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
+  <div class="mb-4"><label class="form-label">Mot de passe</label><input type="password" id="loginPass" class="form-control" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')doLogin()"></div>
+  <button class="btn btn-primary w-100" onclick="doLogin()">Se connecter</button>
+  <div id="loginError" class="text-danger text-center mt-3" style="display:none">Identifiants incorrects</div>
+</div></div>
+<div id="appScreen" style="display:none">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand" style="display:flex;align-items:center;gap:10px;padding:10px 10px">
+    <!-- Logo sidebar compact : pelle + bulldozer -->
+    <svg width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;filter:drop-shadow(0 2px 8px rgba(212,175,55,.5))">
+      <defs>
+        <linearGradient id="sbGold" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fce88d"/><stop offset="100%" stop-color="#9a7015"/></linearGradient>
+      </defs>
+      <!-- Fond cercle -->
+      <circle cx="50" cy="50" r="48" fill="#0d0b00"/>
+      <circle cx="50" cy="50" r="48" fill="none" stroke="url(#sbGold)" stroke-width="3.5"/>
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#d4af37" stroke-width="0.7" opacity="0.4"/>
+      <!-- Sol -->
+      <line x1="4" y1="76" x2="96" y2="76" stroke="#d4af37" stroke-width="0.7" opacity="0.3"/>
+      <!-- Pelle gauche (simplifié) -->
+      <!-- Chenille -->
+      <rect x="6" y="70" width="32" height="7" rx="3.5" fill="#2a2000" stroke="url(#sbGold)" stroke-width="1"/>
+      <circle cx="11" cy="73.5" r="3" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="32" cy="73.5" r="3" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <!-- Corps -->
+      <rect x="9" y="62" width="28" height="9" rx="2" fill="#1e1600" stroke="url(#sbGold)" stroke-width="1"/>
+      <!-- Cabine -->
+      <rect x="10" y="53" width="14" height="10" rx="2.5" fill="#1e1600" stroke="url(#sbGold)" stroke-width="1"/>
+      <rect x="11.5" y="54.5" width="5" height="4" rx="1" fill="#0a1e12" opacity="0.9"/>
+      <!-- Boom -->
+      <line x1="22" y1="57" x2="44" y2="46" stroke="url(#sbGold)" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- Stick -->
+      <line x1="44" y1="46" x2="47" y2="58" stroke="url(#sbGold)" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Godet -->
+      <path d="M 45 58 Q 49 65 53 63 Q 53 57 49 54 Z" fill="url(#sbGold)"/>
+      <!-- Dents -->
+      <line x1="47" y1="63" x2="46" y2="67" stroke="#d4af37" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="50" y1="64" x2="50" y2="68" stroke="#d4af37" stroke-width="1.2" stroke-linecap="round"/>
+      <!-- Bulldozer droite (simplifié) -->
+      <!-- Chenille -->
+      <rect x="62" y="70" width="32" height="7" rx="3.5" fill="#2a2000" stroke="url(#sbGold)" stroke-width="1"/>
+      <circle cx="67" cy="73.5" r="3" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <circle cx="89" cy="73.5" r="3" fill="#0c0900" stroke="#d4af37" stroke-width="0.8"/>
+      <!-- Corps -->
+      <rect x="65" y="62" width="27" height="9" rx="2" fill="#1e1600" stroke="url(#sbGold)" stroke-width="1"/>
+      <!-- Cabine -->
+      <rect x="72" y="52" width="16" height="11" rx="2.5" fill="#1e1600" stroke="url(#sbGold)" stroke-width="1"/>
+      <rect x="73.5" y="53.5" width="5.5" height="4" rx="1" fill="#0a1e12" opacity="0.9"/>
+      <!-- Lame TRAX (gold) -->
+      <path d="M 58 60 L 58 73 Q 61 77 64 73 L 64 60 Q 61 56 58 60 Z" fill="url(#sbGold)" stroke="#6a4600" stroke-width="0.8"/>
+      <!-- Bras lame -->
+      <line x1="64" y1="62" x2="69" y2="63" stroke="#b89020" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="64" y1="70" x2="69" y2="70" stroke="#b89020" stroke-width="1.8" stroke-linecap="round"/>
+      <!-- Séparateur central -->
+      <line x1="50" y1="50" x2="50" y2="78" stroke="#d4af37" stroke-width="0.6" stroke-dasharray="2,3" opacity="0.35"/>
+      <!-- Texte arc -->
+      <path id="sbArc" d="M 12,50 A 38,38 0 0,1 88,50" fill="none"/>
+      <text font-family="Arial,sans-serif" font-size="7.5" fill="#d4af37" font-weight="bold" letter-spacing="2"><textPath href="#sbArc" startOffset="8%">IJJAI  SAMIR</textPath></text>
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <span style="font-size:.72rem;font-weight:700;color:#d4af37;letter-spacing:.5px;line-height:1.2">MAINTENANCE MINIÈRE</span>
+      <span style="font-size:.6rem;color:#9a8f6a;letter-spacing:.5px">Gestion Parc Engins</span>
+    </div>
+  </div>
+    <nav class="mt-2">
+      <a class="nav-link active" onclick="navTo('dashboard',this)"><i class="bi bi-speedometer2"></i> Dashboard</a>
+      <a class="nav-link" onclick="navTo('engins',this)"><i class="bi bi-truck-front-fill"></i> Gestion Engins</a>
+      <a class="nav-link" onclick="navTo('personnel',this)"><i class="bi bi-people-fill"></i> Gestion Personnel</a>
+      <a class="nav-link" onclick="navTo('affectations',this)"><i class="bi bi-link-45deg"></i> Affectation Personnel</a>
+      <a class="nav-link" onclick="navTo('saisie',this)"><i class="bi bi-clipboard-data"></i> Saisie Journalière</a>
+      <a class="nav-link" onclick="navTo('maintenance',this)"><i class="bi bi-tools"></i> Maintenance Préventive</a>
+      <a class="nav-link" onclick="navTo('planningEntretien',this)"><i class="bi bi-calendar2-check"></i> Planning Entretien</a>
+      <a class="nav-link" onclick="navTo('tarifs',this)"><i class="bi bi-currency-dollar"></i> Tarifs Huiles & Pneus</a>
+      <a class="nav-link" onclick="navTo('mensuel',this)"><i class="bi bi-calendar3"></i> Vue Mensuelle</a>
+      <a class="nav-link" onclick="navTo('extraction',this)"><i class="bi bi-funnel-fill"></i> Extraction Données</a>
+      <a class="nav-link" onclick="navTo('rapport',this)"><i class="bi bi-file-earmark-richtext-fill"></i> Rapports</a>
+      <a class="nav-link" onclick="navTo('suiviPneus',this)"><i class="bi bi-disc-fill"></i> Suivi Pneus</a>
+      <a class="nav-link" onclick="navTo('admin',this)"><i class="bi bi-gear-fill"></i> Administration</a>
+    </nav>
+  </aside>
+  <main class="main-content" id="mainContent">
+    <div class="topbar"><button class="btn btn-outline-light btn-sm" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><div><span id="currentDate" class="text-muted small"></span> | <span id="userName" class="fw-bold"></span></div><div style="display:flex;align-items:center;gap:.5rem;margin-left:auto"><button class="btn btn-sm" style="background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);color:#d4af37" onclick="exportJSON()" title="Exporter les données en JSON"><i class="bi bi-download"></i> Export</button><button class="btn btn-sm" style="background:rgba(72,187,120,.12);border:1px solid rgba(72,187,120,.35);color:#48bb78" onclick="document.getElementById('importFile').click()" title="Importer des données depuis un fichier JSON"><i class="bi bi-upload"></i> Import</button><button class="btn btn-sm" style="background:rgba(220,53,69,.15);border:1px solid rgba(220,53,69,.5);color:#ff6b6b;font-weight:600" onclick="doLogout()" title="Se déconnecter et revenir à l'écran de connexion"><i class="bi bi-box-arrow-right"></i> Quitter</button><img src="logo.png.png" alt="Logo" style="height:52px;width:auto;object-fit:contain"><span style="font-size:1.35rem;font-weight:800;letter-spacing:.12em;color:#f5a623;text-shadow:0 0 12px rgba(245,166,35,.4)">MANAGEM</span></div></div>
+    <div id="dashboard" class="section active">
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiTotalEngins">0</div><div class="kpi-label">Total Engins</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value text-success" id="kpiActifs">0</div><div class="kpi-label">En service</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value text-danger" id="kpiPannes">0</div><div class="kpi-label">En panne</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value text-warning" id="kpiMaintenance">0</div><div class="kpi-label">Maintenance</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiDispo">0%</div><div class="kpi-label">Disponibilité</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiUtil">0%</div><div class="kpi-label">Utilisation</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiMtbf">0h</div><div class="kpi-label">MTBF</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="kpiMttr">0h</div><div class="kpi-label">MTTR</div></div></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Disponibilité par engin</h6><div class="chart-container"><canvas id="chartDispo"></canvas></div></div></div>
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Consommation Gasoil</h6><div class="chart-container"><canvas id="chartGasoil"></canvas></div></div></div>
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Nombre de pannes</h6><div class="chart-container"><canvas id="chartPannes"></canvas></div></div></div>
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Heures de fonctionnement</h6><div class="chart-container"><canvas id="chartHeures"></canvas></div></div></div>
+      </div>
+      <!-- Tableau synthèse 10T / Dumpers -->
+      <div class="row g-3 mt-1">
+        <div class="col-12">
+          <div class="card-dark p-3">
+            <h6 class="mb-3" style="color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px"><i class="bi bi-table"></i> Synthèse Flotte — 10T &amp; Dumpers</h6>
+            <div class="row g-3" id="dashFlotteTableWrap">
+              <!-- Tableau 10T -->
+              <div class="col-md-6">
+                <div style="border:2px solid #e67e22;border-radius:8px;overflow:hidden">
+                  <div style="background:#e67e22;color:#fff;padding:8px 14px;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:1px"><i class="bi bi-truck-front-fill"></i> Camions 10 Tonnes</div>
+                  <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0" style="font-size:.82rem">
+                      <thead><tr style="background:rgba(230,126,34,.15)"><th>Engin</th><th class="text-center">HM (h)</th><th class="text-center">TD (h)</th><th class="text-center">TU (h)</th><th class="text-center">TRG (%)</th><th class="text-center">Gasoil (L)</th><th class="text-center">Huiles (L)</th></tr></thead>
+                      <tbody id="dash10tBody"></tbody>
+                      <tfoot id="dash10tFoot" style="background:rgba(230,126,34,.12);font-weight:700"></tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <!-- Tableau Dumpers -->
+              <div class="col-md-6">
+                <div style="border:2px solid #2980b9;border-radius:8px;overflow:hidden">
+                  <div style="background:#2980b9;color:#fff;padding:8px 14px;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:1px"><i class="bi bi-truck-front-fill"></i> Dumpers</div>
+                  <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0" style="font-size:.82rem">
+                      <thead><tr style="background:rgba(41,128,185,.15)"><th>Engin</th><th class="text-center">HM (h)</th><th class="text-center">TD (h)</th><th class="text-center">TU (h)</th><th class="text-center">TRG (%)</th><th class="text-center">Gasoil (L)</th><th class="text-center">Huiles (L)</th></tr></thead>
+                      <tbody id="dashDumpBody"></tbody>
+                      <tfoot id="dashDumpFoot" style="background:rgba(41,128,185,.12);font-weight:700"></tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Graphiques DT / TU / TRG -->
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <div class="card-dark p-2">
+                  <div style="font-size:.75rem;font-weight:700;color:#e67e22;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-bar-chart-fill"></i> 10T — DT / TU / TRG</div>
+                  <canvas id="chart10tDTTU" height="110"></canvas>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card-dark p-2">
+                  <div style="font-size:.75rem;font-weight:700;color:#2980b9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-bar-chart-fill"></i> Dumpers — DT / TU / TRG</div>
+                  <canvas id="chartDumpDTTU" height="110"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="engins" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="m-0">Parc Engins</h5><button class="btn btn-primary" onclick="openEnginModal()"><i class="bi bi-plus-lg"></i> Nouvel Engin</button></div>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Désignation</th><th>Immat.</th><th>Type</th><th>Marque</th><th>Modèle</th><th>Série</th><th>Date MEC</th><th>Statut</th><th>Compteur</th><th>Actions</th></tr></thead><tbody id="enginsTable"></tbody></table></div></div>
+    </div>
+    <div id="personnel" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="m-0">Personnel</h5><button class="btn btn-primary" onclick="openPersonnelModal()"><i class="bi bi-plus-lg"></i> Nouveau</button></div>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Nom</th><th>Prénom</th><th>Fonction</th><th>Équipe</th><th>Tél</th><th>Affectation</th><th>Emb.</th><th>Actions</th></tr></thead><tbody id="personnelTable"></tbody></table></div></div>
+    </div>
+    <div id="saisie" class="section">
+      <div class="card-dark p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="m-0"><i class="bi bi-clipboard-data"></i> Saisie Journalière</h5>
+        </div>
+        <!-- Navigation entre saisies -->
+        <div class="d-flex justify-content-between align-items-center p-2 mb-3" style="background:#100e00;border:1px solid rgba(212,175,55,.2);border-radius:.5rem">
+          <button class="btn btn-sm btn-outline-light" onclick="saisieNav(-1)"><i class="bi bi-chevron-left"></i> Précédente</button>
+          <span id="saisieNavInfo" class="text-warning fw-bold">Nouvelle saisie</span>
+          <button class="btn btn-sm btn-outline-light" onclick="saisieNav(1)">Suivante <i class="bi bi-chevron-right"></i></button>
+        </div>
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-primary btn-sm" onclick="newSaisie()"><i class="bi bi-plus-lg"></i> Nouvelle Saisie</button>
+          <button class="btn btn-outline-warning btn-sm" id="btnRectifier" style="display:none" onclick="saveSaisie()"><i class="bi bi-pencil"></i> Rectifier</button>
+        </div>
+
+        <input type="hidden" id="saisieId">
+
+        <!-- Infos générales -->
+        <div class="section-title"><i class="bi bi-info-circle"></i> Informations Générales</div>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Date *</label><input type="date" id="sDate" class="form-control"></div>
+          <div class="col-md-6"><label class="form-label">Engin *</label><select id="sEngin" class="form-select" onchange="autoFillCompteurDebut(); updateEntretienInfo();"><option value="">-- Choisir --</option></select></div>
+          <select id="sConducteur" style="display:none"></select>
+          <select id="sMecanicien" style="display:none"></select>
+        </div>
+
+        <!-- Compteurs -->
+        <div class="section-title"><i class="bi bi-speedometer"></i> Compteurs</div>
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label">Compteur Début</label><input type="number" id="sCompteurDebut" class="form-control" step="0.1" oninput="calcCompteur()"></div>
+          <div class="col-md-3"><label class="form-label">Compteur Fin</label><input type="number" id="sCompteurFin" class="form-control" step="0.1" oninput="calcCompteur()"></div>
+          <div class="col-md-3"><label class="form-label">Différence (auto)</label><input type="text" id="sDifference" class="form-control" readonly style="background:rgba(212,175,55,.1);font-weight:bold;color:var(--accent)"></div>
+          <div class="col-md-3"><label class="form-label">MLF (m) <small class="text-warning" style="font-size:.75rem"><i class="bi bi-geo"></i> foration</small></label><input type="number" id="sMLF" class="form-control" step="0.1" value="0" title="Mètre Linéaire Foré - réservé aux engins de foration"></div>
+        </div>
+
+        <!-- Entretien Systématique -->
+        <div class="section-title"><i class="bi bi-wrench"></i> Entretien Systématique (250h)</div>
+        <div id="entretienInfo" class="card-dark p-2 mb-2" style="background:#100e00;font-size:.85rem;color:#9a8f6a">Sélectionnez un engin pour voir l'état d'entretien.</div>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Entretien effectué ?</label><select id="sEntretienFait" class="form-select"><option value="">Non</option><option value="250">250h</option><option value="500">500h</option><option value="750">750h</option><option value="1000">1000h</option></select></div>
+          <div class="col-md-6"><label class="form-label">Compteur à l'entretien</label><input type="number" id="sEntretienCompteur" class="form-control" step="0.1"></div>
+        </div>
+
+        <!-- Gasoil -->
+        <div class="section-title"><i class="bi bi-fuel-pump"></i> Gasoil</div>
+        <input type="hidden" id="sGasoil" value="0">
+        <input type="hidden" id="sGasoilCout" value="0">
+        <div id="gasoilContainer"></div>
+        <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+          <button type="button" class="btn btn-outline-warning btn-sm" onclick="addGasoilLine()"><i class="bi bi-plus"></i> Ajouter un apport gasoil</button>
+          <div id="totalGasoilBox" style="background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.4);border-radius:.375rem;padding:.4rem .9rem;font-weight:700;color:#d4af37;font-size:1rem"><i class="bi bi-fuel-pump-fill"></i> Total Gasoil : <span id="totalGasoilSpan">0 L — 0 DH</span></div>
+        </div>
+
+        <!-- Huiles dynamiques -->
+        <div class="section-title"><i class="bi bi-droplet-half"></i> Huiles</div>
+        <div id="huilesContainer"></div>
+        <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+          <button type="button" class="btn btn-outline-light btn-sm" onclick="addHuileLine()"><i class="bi bi-plus"></i> Ajouter une huile</button>
+          <div style="background:rgba(72,187,120,.12);border:1px solid rgba(72,187,120,.35);border-radius:.375rem;padding:.4rem .9rem;font-weight:700;color:#48bb78;font-size:1rem"><i class="bi bi-droplet-fill"></i> Total Huiles : <span id="totalHuilesBox">0 L — 0 DH</span></div>
+        </div>
+
+        <!-- Pneus 4 positions -->
+        <div class="section-title"><i class="bi bi-disc"></i> Pneus</div>
+        <div class="card-dark p-3 mb-2" style="background:#07060a;border:1px solid rgba(212,175,55,.2);border-radius:.75rem">
+          <!-- SVG Truck Widget -->
+          <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:1.25rem">
+            <svg viewBox="0 0 380 260" style="width:100%;max-width:420px;display:block" xmlns="http://www.w3.org/2000/svg">
+              <!-- Drop shadow -->
+              <ellipse cx="190" cy="250" rx="110" ry="7" fill="rgba(0,0,0,0.5)"/>
+              <!-- === TRUCK BODY === -->
+              <!-- Chassis -->
+              <rect x="115" y="28" width="150" height="200" rx="14" fill="#1a1200" stroke="rgba(212,175,55,.45)" stroke-width="1.5"/>
+              <!-- Cab roof -->
+              <rect x="122" y="34" width="136" height="78" rx="10" fill="#100d00" stroke="rgba(212,175,55,.25)" stroke-width="1"/>
+              <!-- Windshield -->
+              <rect x="136" y="42" width="108" height="52" rx="6" fill="rgba(20,70,130,.65)" stroke="rgba(80,150,210,.4)" stroke-width="1"/>
+              <!-- Windshield glare -->
+              <line x1="145" y1="46" x2="150" y2="90" stroke="rgba(255,255,255,.13)" stroke-width="3" stroke-linecap="round"/>
+              <line x1="160" y1="43" x2="163" y2="90" stroke="rgba(255,255,255,.07)" stroke-width="2" stroke-linecap="round"/>
+              <!-- Headlights -->
+              <ellipse cx="130" cy="38" rx="7" ry="5" fill="#f5c518" opacity="0.85"/>
+              <ellipse cx="250" cy="38" rx="7" ry="5" fill="#f5c518" opacity="0.85"/>
+              <ellipse cx="130" cy="38" rx="4" ry="3" fill="#fff9c4" opacity="0.6"/>
+              <ellipse cx="250" cy="38" rx="4" ry="3" fill="#fff9c4" opacity="0.6"/>
+              <!-- Cargo / bed -->
+              <rect x="125" y="122" width="130" height="94" rx="5" fill="#0c0a00" stroke="rgba(212,175,55,.2)" stroke-width="1"/>
+              <!-- Cargo grid lines -->
+              <line x1="190" y1="122" x2="190" y2="216" stroke="rgba(212,175,55,.1)" stroke-width="1"/>
+              <line x1="125" y1="168" x2="255" y2="168" stroke="rgba(212,175,55,.1)" stroke-width="1"/>
+              <!-- Rear lights -->
+              <ellipse cx="130" cy="220" rx="7" ry="5" fill="#dc3545" opacity="0.8"/>
+              <ellipse cx="250" cy="220" rx="7" ry="5" fill="#dc3545" opacity="0.8"/>
+              <ellipse cx="130" cy="220" rx="4" ry="3" fill="#ff8080" opacity="0.5"/>
+              <ellipse cx="250" cy="220" rx="4" ry="3" fill="#ff8080" opacity="0.5"/>
+              <!-- Front direction arrow -->
+              <polygon points="190,14 183,26 197,26" fill="#d4af37" opacity="0.75"/>
+              <!-- Axle lines -->
+              <line x1="58" y1="86" x2="322" y2="86" stroke="rgba(120,120,120,.35)" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <line x1="58" y1="178" x2="322" y2="178" stroke="rgba(120,120,120,.35)" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+              <!-- === AVG TIRE (Avant Gauche) === -->
+              <g id="pneu-svg-avg" onclick="scrollToPneu('avg')" style="cursor:pointer">
+                <rect x="32" y="60" width="52" height="52" rx="10" fill="#28a745" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                <rect x="36" y="64" width="44" height="44" rx="7" fill="rgba(0,0,0,.25)"/>
+                <!-- Tire tread lines -->
+                <line x1="36" y1="72" x2="80" y2="72" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="80" x2="80" y2="80" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="88" x2="80" y2="88" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="96" x2="80" y2="96" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="104" x2="80" y2="104" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <!-- Rim -->
+                <circle cx="58" cy="86" r="13" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+                <circle cx="58" cy="86" r="4" fill="rgba(255,255,255,.5)"/>
+                <!-- Label -->
+                <text x="58" y="126" text-anchor="middle" fill="#d4af37" font-size="11" font-weight="bold" font-family="monospace">AVG</text>
+              </g>
+
+              <!-- === AVD TIRE (Avant Droit) === -->
+              <g id="pneu-svg-avd" onclick="scrollToPneu('avd')" style="cursor:pointer">
+                <rect x="296" y="60" width="52" height="52" rx="10" fill="#28a745" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                <rect x="300" y="64" width="44" height="44" rx="7" fill="rgba(0,0,0,.25)"/>
+                <line x1="300" y1="72" x2="344" y2="72" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="80" x2="344" y2="80" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="88" x2="344" y2="88" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="96" x2="344" y2="96" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="104" x2="344" y2="104" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <circle cx="322" cy="86" r="13" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+                <circle cx="322" cy="86" r="4" fill="rgba(255,255,255,.5)"/>
+                <text x="322" y="126" text-anchor="middle" fill="#d4af37" font-size="11" font-weight="bold" font-family="monospace">AVD</text>
+              </g>
+
+              <!-- === ARG TIRE (Arrière Gauche) === -->
+              <g id="pneu-svg-arg" onclick="scrollToPneu('arg')" style="cursor:pointer">
+                <rect x="32" y="152" width="52" height="52" rx="10" fill="#28a745" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                <rect x="36" y="156" width="44" height="44" rx="7" fill="rgba(0,0,0,.25)"/>
+                <line x1="36" y1="164" x2="80" y2="164" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="172" x2="80" y2="172" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="180" x2="80" y2="180" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="188" x2="80" y2="188" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="36" y1="196" x2="80" y2="196" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <circle cx="58" cy="178" r="13" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+                <circle cx="58" cy="178" r="4" fill="rgba(255,255,255,.5)"/>
+                <text x="58" y="218" text-anchor="middle" fill="#d4af37" font-size="11" font-weight="bold" font-family="monospace">ARG</text>
+              </g>
+
+              <!-- === ARD TIRE (Arrière Droit) === -->
+              <g id="pneu-svg-ard" onclick="scrollToPneu('ard')" style="cursor:pointer">
+                <rect x="296" y="152" width="52" height="52" rx="10" fill="#28a745" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                <rect x="300" y="156" width="44" height="44" rx="7" fill="rgba(0,0,0,.25)"/>
+                <line x1="300" y1="164" x2="344" y2="164" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="172" x2="344" y2="172" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="180" x2="344" y2="180" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="188" x2="344" y2="188" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <line x1="300" y1="196" x2="344" y2="196" stroke="rgba(0,0,0,.3)" stroke-width="2.5"/>
+                <circle cx="322" cy="178" r="13" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+                <circle cx="322" cy="178" r="4" fill="rgba(255,255,255,.5)"/>
+                <text x="322" y="218" text-anchor="middle" fill="#d4af37" font-size="11" font-weight="bold" font-family="monospace">ARD</text>
+              </g>
+
+              <!-- Caption -->
+              <text x="190" y="252" text-anchor="middle" fill="#6b6040" font-size="9" font-family="sans-serif">Vue de dessus — cliquer sur un pneu</text>
+            </svg>
+            <!-- Legend -->
+            <div style="display:flex;gap:1.2rem;font-size:.75rem;margin-top:.4rem;flex-wrap:wrap;justify-content:center">
+              <span style="color:#28a745"><i class="bi bi-circle-fill"></i> OK</span>
+              <span style="color:#ffc107"><i class="bi bi-circle-fill"></i> Usé</span>
+              <span style="color:#fd7e14"><i class="bi bi-circle-fill"></i> À changer</span>
+              <span style="color:#0dcaf0"><i class="bi bi-circle-fill"></i> Changé</span>
+            </div>
+          </div>
+          <!-- Tire detail cards -->
+          <div class="row g-3">
+            <div class="col-md-3" id="pneuRow-avg">
+              <div style="border:2px solid rgba(40,167,69,.35);border-radius:.6rem;padding:.6rem;background:rgba(40,167,69,.05);transition:border-color .25s">
+                <div class="fw-bold text-warning mb-1" style="font-size:.85rem"><i class="bi bi-disc-fill"></i> AVG — Avant Gauche</div>
+                <select id="sPneuAvgStatut" class="form-select form-select-sm mb-1" onchange="onPneuStatutChange('Avg','pneuAvg')"><option value="OK">OK</option><option value="Usé">Usé</option><option value="À changer">À changer</option><option value="Changé">Changé</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-disc"></i> Pneu monté actuel</div>
+                <input type="text" id="sPneuAvgRefActuel" class="form-control form-control-sm mb-1" placeholder="—" readonly style="background:#0d1a0d;color:#5adb7a;border-color:rgba(40,167,69,.4);font-size:.78rem">
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-plus-circle"></i> Nouveau pneu (réf.)</div>
+                <input type="text" id="sPneuAvgRef" class="form-control form-control-sm mb-1" placeholder="Réf. nouveau pneu">
+                <select id="sPneuAvgFourn" class="form-select form-select-sm mb-1"><option value="">-- Fournisseur --</option><option>MICHELIN</option><option>GOODYEAR</option><option>CHEKING</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-award"></i> Marque</div>
+                <select id="sPneuAvgMarque" class="form-select form-select-sm mb-1"><option value="">-- Marque --</option><option>MICHELIN</option><option>BRIDGESTONE</option><option>GOODYEAR</option><option>CONTINENTAL</option><option>PIRELLI</option><option>DUNLOP</option><option>BKT</option><option>TRIANGLE</option><option>DOUBLE COIN</option><option>BELSHINA</option><option>Autre</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-currency-dollar"></i> Prix d'achat (DA)</div>
+                <input type="number" id="sPneuAvgPrix" class="form-control form-control-sm mb-1" placeholder="0" min="0" step="100">
+                <select id="sPneuAvgEtat" class="form-select form-select-sm"><option value="">-- État --</option><option>Usure normale</option><option>Incident</option></select>
+              </div>
+            </div>
+            <div class="col-md-3" id="pneuRow-avd">
+              <div style="border:2px solid rgba(40,167,69,.35);border-radius:.6rem;padding:.6rem;background:rgba(40,167,69,.05);transition:border-color .25s">
+                <div class="fw-bold text-warning mb-1" style="font-size:.85rem"><i class="bi bi-disc-fill"></i> AVD — Avant Droit</div>
+                <select id="sPneuAvdStatut" class="form-select form-select-sm mb-1" onchange="onPneuStatutChange('Avd','pneuAvd')"><option value="OK">OK</option><option value="Usé">Usé</option><option value="À changer">À changer</option><option value="Changé">Changé</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-disc"></i> Pneu monté actuel</div>
+                <input type="text" id="sPneuAvdRefActuel" class="form-control form-control-sm mb-1" placeholder="—" readonly style="background:#0d1a0d;color:#5adb7a;border-color:rgba(40,167,69,.4);font-size:.78rem">
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-plus-circle"></i> Nouveau pneu (réf.)</div>
+                <input type="text" id="sPneuAvdRef" class="form-control form-control-sm mb-1" placeholder="Réf. nouveau pneu">
+                <select id="sPneuAvdFourn" class="form-select form-select-sm mb-1"><option value="">-- Fournisseur --</option><option>MICHELIN</option><option>GOODYEAR</option><option>CHEKING</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-award"></i> Marque</div>
+                <select id="sPneuAvdMarque" class="form-select form-select-sm mb-1"><option value="">-- Marque --</option><option>MICHELIN</option><option>BRIDGESTONE</option><option>GOODYEAR</option><option>CONTINENTAL</option><option>PIRELLI</option><option>DUNLOP</option><option>BKT</option><option>TRIANGLE</option><option>DOUBLE COIN</option><option>BELSHINA</option><option>Autre</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-currency-dollar"></i> Prix d'achat (DA)</div>
+                <input type="number" id="sPneuAvdPrix" class="form-control form-control-sm mb-1" placeholder="0" min="0" step="100">
+                <select id="sPneuAvdEtat" class="form-select form-select-sm"><option value="">-- État --</option><option>Usure normale</option><option>Incident</option></select>
+              </div>
+            </div>
+            <div class="col-md-3" id="pneuRow-arg">
+              <div style="border:2px solid rgba(40,167,69,.35);border-radius:.6rem;padding:.6rem;background:rgba(40,167,69,.05);transition:border-color .25s">
+                <div class="fw-bold text-warning mb-1" style="font-size:.85rem"><i class="bi bi-disc-fill"></i> ARG — Arrière Gauche</div>
+                <select id="sPneuArgStatut" class="form-select form-select-sm mb-1" onchange="onPneuStatutChange('Arg','pneuArg')"><option value="OK">OK</option><option value="Usé">Usé</option><option value="À changer">À changer</option><option value="Changé">Changé</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-disc"></i> Pneu monté actuel</div>
+                <input type="text" id="sPneuArgRefActuel" class="form-control form-control-sm mb-1" placeholder="—" readonly style="background:#0d1a0d;color:#5adb7a;border-color:rgba(40,167,69,.4);font-size:.78rem">
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-plus-circle"></i> Nouveau pneu (réf.)</div>
+                <input type="text" id="sPneuArgRef" class="form-control form-control-sm mb-1" placeholder="Réf. nouveau pneu">
+                <select id="sPneuArgFourn" class="form-select form-select-sm mb-1"><option value="">-- Fournisseur --</option><option>MICHELIN</option><option>GOODYEAR</option><option>CHEKING</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-award"></i> Marque</div>
+                <select id="sPneuArgMarque" class="form-select form-select-sm mb-1"><option value="">-- Marque --</option><option>MICHELIN</option><option>BRIDGESTONE</option><option>GOODYEAR</option><option>CONTINENTAL</option><option>PIRELLI</option><option>DUNLOP</option><option>BKT</option><option>TRIANGLE</option><option>DOUBLE COIN</option><option>BELSHINA</option><option>Autre</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-currency-dollar"></i> Prix d'achat (DA)</div>
+                <input type="number" id="sPneuArgPrix" class="form-control form-control-sm mb-1" placeholder="0" min="0" step="100">
+                <select id="sPneuArgEtat" class="form-select form-select-sm"><option value="">-- État --</option><option>Usure normale</option><option>Incident</option></select>
+              </div>
+            </div>
+            <div class="col-md-3" id="pneuRow-ard">
+              <div style="border:2px solid rgba(40,167,69,.35);border-radius:.6rem;padding:.6rem;background:rgba(40,167,69,.05);transition:border-color .25s">
+                <div class="fw-bold text-warning mb-1" style="font-size:.85rem"><i class="bi bi-disc-fill"></i> ARD — Arrière Droit</div>
+                <select id="sPneuArdStatut" class="form-select form-select-sm mb-1" onchange="onPneuStatutChange('Ard','pneuArd')"><option value="OK">OK</option><option value="Usé">Usé</option><option value="À changer">À changer</option><option value="Changé">Changé</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-disc"></i> Pneu monté actuel</div>
+                <input type="text" id="sPneuArdRefActuel" class="form-control form-control-sm mb-1" placeholder="—" readonly style="background:#0d1a0d;color:#5adb7a;border-color:rgba(40,167,69,.4);font-size:.78rem">
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-plus-circle"></i> Nouveau pneu (réf.)</div>
+                <input type="text" id="sPneuArdRef" class="form-control form-control-sm mb-1" placeholder="Réf. nouveau pneu">
+                <select id="sPneuArdFourn" class="form-select form-select-sm mb-1"><option value="">-- Fournisseur --</option><option>MICHELIN</option><option>GOODYEAR</option><option>CHEKING</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-award"></i> Marque</div>
+                <select id="sPneuArdMarque" class="form-select form-select-sm mb-1"><option value="">-- Marque --</option><option>MICHELIN</option><option>BRIDGESTONE</option><option>GOODYEAR</option><option>CONTINENTAL</option><option>PIRELLI</option><option>DUNLOP</option><option>BKT</option><option>TRIANGLE</option><option>DOUBLE COIN</option><option>BELSHINA</option><option>Autre</option></select>
+                <div style="font-size:.67rem;color:#888;margin-bottom:1px"><i class="bi bi-currency-dollar"></i> Prix d'achat (DA)</div>
+                <input type="number" id="sPneuArdPrix" class="form-control form-control-sm mb-1" placeholder="0" min="0" step="100">
+                <select id="sPneuArdEtat" class="form-select form-select-sm"><option value="">-- État --</option><option>Usure normale</option><option>Incident</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="pneusVieInfo" class="mt-2"></div>
+
+        <!-- Flexibles dynamiques -->
+        <div class="section-title"><i class="bi bi-hammer"></i> Flexibles</div>
+        <div id="flexiblesContainer"></div>
+        <button type="button" class="btn btn-outline-light btn-sm mt-2" onclick="addFlexibleLine()"><i class="bi bi-plus"></i> Ajouter un flexible</button>
+
+        <!-- Arrêts & Pannes -->
+        <div class="section-title"><i class="bi bi-exclamation-triangle"></i> Arrêts & Pannes</div>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label">Nombre d'arrêts</label><input type="number" id="sNbArrets" class="form-control" value="0" min="0"></div>
+          <div class="col-md-4"><label class="form-label">Heures de panne</label><input type="number" id="sHeurePanne" class="form-control" step="0.5" value="0" min="0"></div>
+          <div class="col-md-4"><label class="form-label">Heures d'arrêt</label><input type="number" id="sHeureArret" class="form-control" step="0.5" value="0" min="0"></div>
+        </div>
+
+        <!-- Interventions dynamiques -->
+        <div class="section-title"><i class="bi bi-clipboard-check"></i> Interventions</div>
+        <div id="interventionsContainer"></div>
+        <button type="button" class="btn btn-outline-light btn-sm mt-2" onclick="addInterventionLine()"><i class="bi bi-plus"></i> Ajouter une intervention</button>
+
+        <!-- Observations -->
+        <div class="section-title"><i class="bi bi-chat-left-text"></i> Observations</div>
+        <div class="row g-3">
+          <div class="col-12"><textarea id="sObs" class="form-control" rows="3" placeholder="Notes et observations..."></textarea></div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary" onclick="saveSaisie()"><i class="bi bi-save"></i> Enregistrer</button>
+          <button class="btn btn-outline-light" onclick="newSaisie()"><i class="bi bi-file-earmark-plus"></i> Nouvelle</button>
+        </div>
+      </div>
+
+      <!-- Bandeau mode édition -->
+      <div id="editModeBanner" style="display:none;align-items:center;gap:.75rem;padding:.6rem 1rem;margin-bottom:.75rem;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.5);border-radius:.5rem">
+        <i class="bi bi-pencil-square" style="color:#d4af37;font-size:1.2rem"></i>
+        <span style="color:#d4af37;font-weight:600">Mode Modification — <span id="editBannerDate"></span></span>
+        <button class="btn btn-sm btn-outline-danger ms-auto" onclick="newSaisie();document.getElementById('editModeBanner').style.display='none'"><i class="bi bi-x-lg"></i> Annuler</button>
+      </div>
+
+      <!-- Historique -->
+      <div class="card-dark mb-3 p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="m-0 text-warning">Historique des Saisies</h6>
+          <button class="btn btn-outline-danger btn-sm admin-only" onclick="deleteAllSaisies()"><i class="bi bi-trash"></i> Supprimer tout</button>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-3"><select id="filtreEngin" class="form-select form-select-sm" onchange="applyFilters()"><option value="">Tous engins</option></select></div>
+          <div class="col-md-3"><select id="filtreOperateur" class="form-select form-select-sm" onchange="applyFilters()"><option value="">Tous opérateurs</option></select></div>
+          <div class="col-md-2"><input type="date" id="filtreDate" class="form-control form-control-sm" onchange="applyFilters()"></div>
+          <div class="col-md-2"><button class="btn btn-sm btn-outline-light w-100" onclick="resetFilters()"><i class="bi bi-arrow-clockwise"></i> Reset</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0"><thead><tr><th>Date</th><th>Engin</th><th>Cpt Début</th><th>Cpt Fin</th><th>Diff</th><th>MLF (m)</th><th>Gasoil</th><th>Huile</th><th>Arrêts</th><th>H. Panne</th><th>Actions</th></tr></thead><tbody id="saisieTable"></tbody></table></div>
+      </div>
+    </div>
+    <div id="rapports" class="section">
+      <h5 class="mb-3">Rapports</h5>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="calc-box"><div class="value" id="rDispo">0%</div><div class="label">Disponibilité</div></div></div>
+        <div class="col-md-3"><div class="calc-box"><div class="value" id="rUtil">0%</div><div class="label">Utilisation</div></div></div>
+        <div class="col-md-3"><div class="calc-box"><div class="value" id="rMtbf">0h</div><div class="label">MTBF</div></div></div>
+        <div class="col-md-3"><div class="calc-box"><div class="value" id="rMttr">0h</div><div class="label">MTTR</div></div></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Consommation Huiles (L)</h6><div class="chart-container"><canvas id="chartHuiles"></canvas></div></div></div>
+        <div class="col-md-6"><div class="card-dark p-3"><h6>Changement de Pneus</h6><div class="chart-container"><canvas id="chartPneus"></canvas></div></div></div>
+      </div>
+      <button class="btn btn-primary" onclick="exportAllToExcel()"><i class="bi bi-file-earmark-excel"></i> Exporter Excel</button>
+    </div>
+
+    <!-- AFFECTATION PERSONNEL -->
+    <div id="affectations" class="section">
+      <h5 class="mb-3"><i class="bi bi-link-45deg"></i> Affectation Personnel</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label">Personnel</label><select id="affectPersonnel" class="form-select"></select></div>
+          <div class="col-md-3"><label class="form-label">Engin</label><select id="affectEngin" class="form-select"></select></div>
+          <div class="col-md-2"><label class="form-label">Poste</label><select id="affectPoste" class="form-select"><option>Poste 1</option><option>Poste 2</option><option>Poste 3</option></select></div>
+          <div class="col-md-2"><label class="form-label">Équipe</label><select id="affectEquipe" class="form-select"><option>Équipe A</option><option>Équipe B</option><option>Équipe C</option></select></div>
+          <div class="col-md-2"><label class="form-label">Date Début</label><input type="date" id="affectDate" class="form-control"></div>
+        </div>
+        <button class="btn btn-primary mt-3" onclick="saveAffectation()"><i class="bi bi-plus-lg"></i> Affecter</button>
+      </div>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Personnel</th><th>Engin</th><th>Poste</th><th>Équipe</th><th>Date Début</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="affectationsTable"></tbody></table></div></div>
+    </div>
+
+    <!-- GESTION PANNES -->
+    <div id="pannes" class="section">
+      <h5 class="mb-3"><i class="bi bi-wrench-adjustable"></i> Gestion Pannes</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label">Date *</label><input type="date" id="panneDate" class="form-control" required></div>
+          <div class="col-md-3"><label class="form-label">Engin *</label><select id="panneEngin" class="form-select"></select></div>
+          <div class="col-md-3"><label class="form-label">Type de panne</label><select id="panneType" class="form-select"><option value="">-- Type --</option><option>Hydraulique</option><option>Électrique</option><option>Mécanique</option><option>Pneumatique</option><option>Transmission</option><option>Moteur</option><option>Autre</option></select></div>
+          <div class="col-md-3"><label class="form-label">Mécanicien</label><select id="panneMecanicien" class="form-select"></select></div>
+          <div class="col-md-3"><label class="form-label">Durée (heures)</label><input type="number" id="panneDuree" class="form-control" step="0.5" value="0"></div>
+          <div class="col-md-3"><label class="form-label">Statut</label><select id="panneStatut" class="form-select"><option>En cours</option><option>Résolue</option><option>En attente pièce</option></select></div>
+          <div class="col-md-6"><label class="form-label">Description</label><textarea id="panneDesc" class="form-control" rows="2"></textarea></div>
+        </div>
+        <input type="hidden" id="panneId">
+        <button class="btn btn-primary mt-3" onclick="savePanne()"><i class="bi bi-plus-lg"></i> Enregistrer</button>
+      </div>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Date</th><th>Engin</th><th>Type</th><th>Description</th><th>Mécanicien</th><th>Durée</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="pannesTable"></tbody></table></div></div>
+    </div>
+
+    <!-- MAINTENANCE PREVENTIVE -->
+    <div id="maintenance" class="section">
+      <h5 class="mb-3"><i class="bi bi-tools"></i> Maintenance Préventive</h5>
+
+      <!-- Filtres + vues -->
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2"><label class="form-label mb-1" style="font-size:.8rem">Période début</label><input type="date" id="maintFilterDeb" class="form-control form-control-sm" onchange="renderMaintenance()"></div>
+          <div class="col-md-2"><label class="form-label mb-1" style="font-size:.8rem">Période fin</label><input type="date" id="maintFilterFin" class="form-control form-control-sm" onchange="renderMaintenance()"></div>
+          <div class="col-md-3"><label class="form-label mb-1" style="font-size:.8rem">Engin</label><select id="maintFilterEngin" class="form-select form-select-sm" onchange="renderMaintenance()"><option value="">Tous les engins</option></select></div>
+          <div class="col-md-2"><label class="form-label mb-1" style="font-size:.8rem">Statut</label><select id="maintFilterStatut" class="form-select form-select-sm" onchange="renderMaintenance()"><option value="">Tous</option><option>Planifié</option><option>En cours</option><option>Terminé</option><option>Annulé</option></select></div>
+          <div class="col-md-3 d-flex gap-2 align-items-end">
+            <button id="btnMaintTable" class="btn btn-sm btn-warning" onclick="switchMaintenanceView('table')"><i class="bi bi-table"></i> Tableau</button>
+            <button id="btnMaintGantt" class="btn btn-sm btn-outline-info" onclick="switchMaintenanceView('gantt')"><i class="bi bi-bar-chart-steps"></i> Gantt</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulaire planification -->
+      <div class="card-dark p-3 mb-3">
+        <div class="section-title mb-2" style="margin-top:0;font-size:.85rem"><i class="bi bi-plus-circle"></i> Planifier une maintenance</div>
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label">Date début *</label><input type="date" id="maintDate" class="form-control" required></div>
+          <div class="col-md-3"><label class="form-label">Date fin</label><input type="date" id="maintDateFin" class="form-control"></div>
+          <div class="col-md-3"><label class="form-label">Engin *</label><select id="maintEngin" class="form-select"></select></div>
+          <div class="col-md-3"><label class="form-label">Type</label><select id="maintType" class="form-select"><option value="">-- Type --</option><option>Vidange</option><option>Graissage</option><option>Changement filtres</option><option>Révision générale</option><option>Contrôle freins</option><option>Changement courroie</option><option>Inspection</option></select></div>
+          <div class="col-md-3"><label class="form-label">Compteur prévu (h)</label><input type="number" id="maintCompteur" class="form-control" value="0"></div>
+          <div class="col-md-6"><label class="form-label">Description</label><textarea id="maintDesc" class="form-control" rows="2"></textarea></div>
+          <div class="col-md-3"><label class="form-label">Statut</label><select id="maintStatut" class="form-select"><option>Planifié</option><option>En cours</option><option>Terminé</option><option>Annulé</option></select></div>
+        </div>
+        <input type="hidden" id="maintId">
+        <button class="btn btn-primary mt-3" onclick="saveMaintenance()"><i class="bi bi-plus-lg"></i> Planifier</button>
+      </div>
+
+      <!-- Vue Tableau -->
+      <div id="maintTableView">
+        <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Date Début</th><th>Date Fin</th><th>Engin</th><th>Type</th><th>Description</th><th>Compteur</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="maintenanceTable"></tbody></table></div></div>
+      </div>
+
+      <!-- Vue Gantt -->
+      <div id="maintGanttView" style="display:none">
+        <div class="card-dark p-2"><div id="maintGantt"></div></div>
+      </div>
+    </div>
+
+    <!-- PLANNING ENTRETIEN 250h -->
+    <div id="planningEntretien" class="section">
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <div>
+          <h5 class="mb-1"><i class="bi bi-calendar2-check"></i> Planning Entretien Systématique — Jalons 250h</h5>
+          <p class="text-muted mb-3" style="font-size:.82rem">Suivi des entretiens cumulatifs par tranches de 250h pour tous les engins.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm ms-3" onclick="printSection('planningEntretien','Planning Entretien — Jalons 250h')"><i class="bi bi-printer-fill"></i> Imprimer</button>
+      </div>
+
+      <!-- Onglets vue -->
+      <div class="mb-3" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="tabPlanningGlobal" class="btn btn-sm btn-warning" onclick="switchPlanningTab('global')">
+          <i class="bi bi-table"></i> Vue Globale
+        </button>
+        <button id="tabPlanningWeek" class="btn btn-sm btn-outline-info" onclick="switchPlanningTab('week')">
+          <i class="bi bi-calendar-week"></i> Vue par Semaine
+        </button>
+        <button id="tabPlanningImminent" class="btn btn-sm btn-outline-danger" onclick="switchPlanningTab('imminent')">
+          <i class="bi bi-exclamation-triangle-fill"></i> Plan Imminents ⚡
+        </button>
+      </div>
+
+      <!-- Filtres Vue Globale -->
+      <div id="planningFiltresGlobal" class="card-dark p-3 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-4">
+            <label class="form-label mb-1" style="font-size:.8rem">Filtrer par type</label>
+            <select id="planningTypeFilter" class="form-select form-select-sm" onchange="renderPlanningEntretien()">
+              <option value="">Tous les types</option>
+              <option value="10t">10T</option>
+              <option value="Dumper">Dumper</option>
+            </select>
+          </div>
+          <div class="col-md-8 d-flex align-items-end">
+            <button class="btn btn-sm btn-outline-warning" onclick="renderPlanningEntretien()">
+              <i class="bi bi-arrow-clockwise"></i> Actualiser
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtres Vue Semaine -->
+      <div id="planningFiltresSemaine" class="card-dark p-3 mb-3" style="display:none">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <label class="form-label mb-1" style="font-size:.8rem"><i class="bi bi-calendar-week"></i> Choisir une semaine</label>
+            <input type="week" id="planningWeekInput" class="form-control form-control-sm" onchange="renderPlanningWeek()">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label mb-1" style="font-size:.8rem">Ou saisir début de semaine</label>
+            <input type="date" id="planningWeekDate" class="form-control form-control-sm" onchange="syncWeekFromDate()">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label mb-1" style="font-size:.8rem">Filtrer par type</label>
+            <select id="planningWeekType" class="form-select form-select-sm" onchange="renderPlanningWeek()">
+              <option value="">Tous</option>
+              <option value="10t">10T</option>
+              <option value="Dumper">Dumper</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-flex align-items-end gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="planningWeekNav(-1)"><i class="bi bi-chevron-left"></i> Préc.</button>
+            <button class="btn btn-sm btn-outline-info flex-grow-1" onclick="planningWeekNav(0)"><i class="bi bi-calendar-check"></i> Auj.</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="planningWeekNav(1)">Suiv. <i class="bi bi-chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vue Semaine -->
+      <div id="planningWeekView" style="display:none"></div>
+
+      <!-- Légende -->
+      <div class="card-dark p-2 mb-3" style="font-size:.78rem">
+        <span style="margin-right:16px"><span style="color:#5adb7a;font-weight:700">✓ Fait</span> — entretien effectué à ce jalon</span>
+        <span style="margin-right:16px"><span style="color:#5bc8ff;font-weight:700">→ Prochain</span> — prochain entretien à planifier</span>
+        <span style="margin-right:16px"><span style="color:#ffc107;font-weight:700">! Imminent</span> — moins de 50h restantes</span>
+        <span style="margin-right:16px"><span style="color:#ff6b6b;font-weight:700">⚠ Dépassé</span> — entretien en retard</span>
+        <span style="color:#555">○ À venir</span>
+      </div>
+
+      <!-- Tableau planning -->
+      <div class="card-dark p-0" style="overflow:hidden">
+        <div class="table-responsive">
+          <table class="table table-dark table-hover mb-0" style="font-size:.83rem" id="planningTable">
+            <thead id="planningHead"></thead>
+            <tbody id="planningBody">
+              <tr><td colspan="10" class="text-center p-4" style="color:#666">Chargement...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Résumé alertes -->
+      <div id="planningAlerts" class="mt-3"></div>
+
+      <!-- Filtres Plan Imminents -->
+      <div id="planningFiltresImminent" class="card-dark p-3 mb-3" style="display:none;border:1px solid rgba(220,53,69,.4)">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:.8rem">Date d&eacute;but</label>
+            <input type="date" id="planningImminentDeb" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:.8rem">Date fin</label>
+            <input type="date" id="planningImminentFin" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:.8rem">Seuil restant (h)</label>
+            <input type="number" id="planningImminentSeuil" class="form-control form-control-sm" value="50" min="0" step="10">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:.8rem">Type d&apos;engin</label>
+            <select id="planningImminentType" class="form-select form-select-sm">
+              <option value="">Tous</option>
+              <option value="10t">10T</option>
+              <option value="Dumper">Dumper</option>
+            </select>
+          </div>
+          <div class="col-md-4 d-flex align-items-end gap-2">
+            <button class="btn btn-danger btn-sm flex-grow-1" onclick="runPlanImminents()">
+              <i class="bi bi-search"></i> G&eacute;n&eacute;rer le Plan
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="printSection('planningImminentView','Plan Entretiens Imminents')">
+              <i class="bi bi-printer-fill"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Résultats Plan Imminents -->
+      <div id="planningImminentView" style="display:none"></div>
+    </div>
+
+    <!-- CARBURANT & LUBRIFIANTS -->
+    <div id="carburant" class="section">
+      <h5 class="mb-3"><i class="bi bi-fuel-pump"></i> Carburant & Lubrifiants</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-2"><label class="form-label">Date *</label><input type="date" id="carbDate" class="form-control" required></div>
+          <div class="col-md-3"><label class="form-label">Engin *</label><select id="carbEngin" class="form-select"></select></div>
+          <div class="col-md-2"><label class="form-label">Type</label><select id="carbType" class="form-select"><option value="">-- Type --</option><option>Gasoil</option><option>HV 68</option><option>S30</option><option>S50</option><option>S15W40</option><option>15W40 Normal</option><option>AUTRAN</option><option>85W140</option></select></div>
+          <div class="col-md-2"><label class="form-label">Quantité (L)</label><input type="number" id="carbQte" class="form-control" step="0.5" value="0"></div>
+          <div class="col-md-2"><label class="form-label">Compteur (h)</label><input type="number" id="carbCompteur" class="form-control" value="0"></div>
+          <div class="col-md-3"><label class="form-label">Observations</label><input type="text" id="carbObs" class="form-control"></div>
+        </div>
+        <input type="hidden" id="carbId">
+        <button class="btn btn-primary mt-3" onclick="saveCarburant()"><i class="bi bi-plus-lg"></i> Enregistrer</button>
+      </div>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Date</th><th>Engin</th><th>Type</th><th>Quantité</th><th>Compteur</th><th>Observations</th><th>Actions</th></tr></thead><tbody id="carburantTable"></tbody></table></div></div>
+    </div>
+
+    <!-- TARIFS HUILES & GASOIL & PNEUS -->
+    <div id="tarifs" class="section">
+      <h5 class="mb-3"><i class="bi bi-currency-dollar"></i> Tarifs Huiles, Gasoil &amp; Pneus</h5>
+
+      <!-- ── Huiles & Gasoil ── -->
+      <div class="section-title"><i class="bi bi-droplet-fill"></i> Huiles &amp; Gasoil</div>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label">Produit *</label><select id="tarifProduit" class="form-select"><option value="">-- Choisir --</option><option>Gasoil</option><option>HV 68</option><option>S30</option><option>S50</option><option>S15W40</option><option>15W40 Normal</option><option>AUTRAN</option><option>85W140</option></select></div>
+          <div class="col-md-4"><label class="form-label">Prix unitaire (DH/L) *</label><input type="number" id="tarifPrix" class="form-control" step="0.01" value="0"></div>
+          <div class="col-md-4"><label class="form-label">Date d'effet *</label><input type="date" id="tarifDate" class="form-control"></div>
+        </div>
+        <input type="hidden" id="tarifId">
+        <button class="btn btn-primary mt-3" onclick="saveTarif()"><i class="bi bi-plus-lg"></i> Enregistrer le Tarif</button>
+      </div>
+      <h6 class="text-warning mb-2">Tarifs Actuels — Huiles &amp; Gasoil</h6>
+      <div class="card-dark mb-3"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Produit</th><th>Prix Actuel (DH/L)</th><th>Date d'effet</th><th>Actions</th></tr></thead><tbody id="tarifsActuelsTable"></tbody></table></div></div>
+      <h6 class="text-warning mb-2">Historique des Tarifs — Huiles &amp; Gasoil</h6>
+      <div class="card-dark mb-4"><div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>Produit</th><th>Prix (DH/L)</th><th>Date d'effet</th><th>Date enregistrement</th></tr></thead><tbody id="tarifsHistoriqueTable"></tbody></table></div></div>
+
+      <!-- ── Tarifs Pneus ── -->
+      <div class="section-title"><i class="bi bi-disc-fill"></i> Tarifs Pneus</div>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Dimension *</label>
+            <select id="pneuDimension" class="form-select" onchange="toggleAutreDimension()">
+              <option value="">-- Choisir --</option>
+              <option>1800/25</option>
+              <option>26.5 R25</option>
+              <option>23.5 R25</option>
+              <option>20.5 R25</option>
+              <option>17.5 R25</option>
+              <option value="autre">Autre dimension...</option>
+            </select>
+          </div>
+          <div class="col-md-3" id="autreDimensionWrap" style="display:none">
+            <label class="form-label">Autre dimension *</label>
+            <input type="text" id="pneuAutreDimension" class="form-control" placeholder="ex: 29.5 R29">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fournisseur *</label>
+            <select id="pneuFournisseur" class="form-select">
+              <option value="">-- Choisir --</option>
+              <option>MICHELIN</option>
+              <option>GOODYEAR</option>
+              <option>TCHEKING</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Prix unitaire (DH/pneu) *</label>
+            <input type="number" id="pneuPrix" class="form-control" step="0.01" value="0">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Date d'effet *</label>
+            <input type="date" id="pneuTarifDate" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Observations</label>
+            <input type="text" id="pneuObs" class="form-control" placeholder="Référence, remarque...">
+          </div>
+        </div>
+        <input type="hidden" id="pneuTarifId">
+        <button class="btn btn-primary mt-3" onclick="savePneuTarif()"><i class="bi bi-plus-lg"></i> Enregistrer le Tarif Pneu</button>
+      </div>
+      <h6 class="text-warning mb-2">Tarifs Actuels — Pneus</h6>
+      <div class="card-dark mb-3"><div class="table-responsive"><table class="table table-dark table-hover mb-0">
+        <thead><tr><th>Dimension</th><th>Fournisseur</th><th>Prix (DH/unité)</th><th>Date d'effet</th><th>Observations</th><th>Actions</th></tr></thead>
+        <tbody id="pneuTarifsActuelsTable"></tbody>
+      </table></div></div>
+      <h6 class="text-warning mb-2">Historique — Pneus</h6>
+      <div class="card-dark"><div class="table-responsive"><table class="table table-dark table-hover mb-0">
+        <thead><tr><th>Dimension</th><th>Fournisseur</th><th>Prix (DH/unité)</th><th>Date d'effet</th><th>Enregistré le</th><th>Observations</th></tr></thead>
+        <tbody id="pneuTarifsHistTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- VUE MENSUELLE -->
+    <div id="mensuel" class="section">
+      <h5 class="mb-3"><i class="bi bi-calendar3"></i> Vue Mensuelle</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3">
+          <div class="col-md-3"><label class="form-label">Mois</label><select id="mensuelMois" class="form-select" onchange="loadMensuel()"><option value="01">Janvier</option><option value="02">Février</option><option value="03">Mars</option><option value="04">Avril</option><option value="05">Mai</option><option value="06">Juin</option><option value="07">Juillet</option><option value="08">Août</option><option value="09">Septembre</option><option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option></select></div>
+          <div class="col-md-3"><label class="form-label">Année</label><select id="mensuelAnnee" class="form-select" onchange="loadMensuel()"></select></div>
+          <div class="col-md-3"><label class="form-label">Engin</label><select id="mensuelEngin" class="form-select" onchange="loadMensuel()"><option value="">Tous les engins</option></select></div>
+          <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-light w-100" onclick="loadMensuel()"><i class="bi bi-arrow-clockwise"></i> Actualiser</button></div>
+        </div>
+      </div>
+      <div class="card-dark mb-3 p-3">
+        <h6 class="text-warning mb-2">Différence des Compteurs par Jour</h6>
+        <div class="table-responsive"><table class="table table-dark table-sm mb-0"><thead id="mensuelThead"></thead><tbody id="mensuelTbody"></tbody></table></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="card-dark p-3"><h6>Heures de Marche</h6><div class="chart-container"><canvas id="chartMensuelHeures"></canvas></div></div></div>
+        <div class="col-md-4"><div class="card-dark p-3"><h6>Gasoil par Jour</h6><div class="chart-container"><canvas id="chartMensuelGasoil"></canvas></div></div></div>
+        <div class="col-md-4"><div class="card-dark p-3"><h6>Huiles par Jour</h6><div class="chart-container"><canvas id="chartMensuelHuiles"></canvas></div></div></div>
+      </div>
+    </div>
+
+    <!-- EXTRACTION DONNÉES -->
+    <div id="extraction" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-funnel-fill"></i> Extraction de Données</h5>
+        <button class="btn btn-secondary btn-sm" onclick="printSection('extraction','Extraction de Données')"><i class="bi bi-printer-fill"></i> Imprimer</button>
+      </div>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-2"><label class="form-label">Date début</label><input type="date" id="extDateDeb" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Date fin</label><input type="date" id="extDateFin" class="form-control"></div>
+          <div class="col-md-3"><label class="form-label">Type d'engin</label><select id="extType" class="form-select" onchange="updateExtSelects()"><option value="">Tous les types</option></select></div>
+          <div class="col-md-3"><label class="form-label">Engin</label><select id="extEngin" class="form-select"><option value="">Tous les engins</option></select></div>
+          <div class="col-md-3"><label class="form-label">État intervention</label><select id="extEtat" class="form-select"><option value="">Tous les états</option><option>Fait</option><option>Non fait</option><option>À programmer</option><option>Programmé</option><option>Programmé non fait</option><option>Programmé et fait</option></select></div>
+          <div class="col-md-2"><label class="form-label d-block">Fait marquant</label><div class="form-check form-switch mt-1"><input class="form-check-input" type="checkbox" id="extFaitMarquant" style="width:2.5rem;height:1.25rem"><label class="form-check-label text-warning" for="extFaitMarquant">Uniquement</label></div></div>
+          <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100" onclick="runExtraction()"><i class="bi bi-search"></i> Générer</button></div>
+        </div>
+      </div>
+      <div id="extKpi" class="row g-3 mb-3"></div>
+      <div id="extTableWrap" style="display:none">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-warning m-0"><i class="bi bi-table"></i> Détail par engin</h6>
+          <button class="btn btn-sm btn-outline-success" onclick="exportExtractionCSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Exporter CSV</button>
+        </div>
+        <div class="card-dark"><div class="table-responsive">
+          <table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>Engin</th><th>Type</th><th>HM (h)</th><th>Gasoil (L)</th><th>Ratio Gasoil<br><small class="text-muted">L/HM</small></th><th>Huiles (L)</th><th>Ratio Huiles<br><small class="text-muted">L/HM</small></th><th>Pneus<br>changés</th><th>Flexibles<br>changés</th></tr></thead>
+            <tbody id="extTableBody"></tbody>
+            <tfoot id="extTableFoot" style="border-top:2px solid rgba(212,175,55,.5)"></tfoot>
+          </table>
+        </div></div>
+      </div>
+      <!-- Tableau budget vs réel -->
+      <div id="extBudgetWrap" style="display:none" class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-warning m-0"><i class="bi bi-clipboard-data"></i> Analyse Budget vs Réel — par Famille d'Engin</h6>
+          <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#budgetFormCollapse"><i class="bi bi-sliders"></i> Paramétrer Budgets</button>
+        </div>
+        <!-- Formulaire budget (masqué par défaut) -->
+        <div class="collapse mb-3" id="budgetFormCollapse">
+          <div class="card-dark p-3">
+            <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Saisissez les budgets de référence par type d'engin puis cliquez <strong>Enregistrer</strong>.</p>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm mb-2">
+                <thead><tr><th>Type d'engin</th><th>Budget HM (h)</th><th>Budget Gasoil (L/HM)</th><th>Budget Huile (L/HM)</th></tr></thead>
+                <tbody id="budgetFormBody"></tbody>
+              </table>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="saveBudgets()"><i class="bi bi-save"></i> Enregistrer les budgets</button>
+          </div>
+        </div>
+        <!-- Tableau comparaison -->
+        <div class="card-dark"><div class="table-responsive">
+          <table class="table table-sm mb-0" style="background:transparent">
+            <thead style="background:#2a2200;color:#d4af37;font-size:.8rem">
+              <tr>
+                <th style="background:#3a3000;padding:.5rem .75rem">Famille Engin</th>
+                <th class="text-center">HMD & MLF</th><th class="text-center">Budget</th><th class="text-center">Écart</th>
+                <th class="text-center">Ratio Gasoil</th><th class="text-center">Budget Gasoil</th><th class="text-center">Écart Gasoil</th>
+                <th class="text-center">Ratio Huile</th><th class="text-center">Budget Huile</th><th class="text-center">Écart Huile</th>
+              </tr>
+            </thead>
+            <tbody id="extBudgetBody"></tbody>
+          </table>
+        </div></div>
+      </div>
+
+      <!-- Fiche journalière des travaux -->
+      <div id="extFicheWrap" style="display:none" class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-warning m-0"><i class="bi bi-journal-text"></i> Fiche Journalière des Travaux</h6>
+          <button class="btn btn-sm btn-outline-success" onclick="exportFicheCSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Exporter CSV</button>
+        </div>
+        <div class="card-dark"><div class="table-responsive">
+          <table class="table table-dark table-hover table-sm mb-0" id="extFicheTable">
+            <thead>
+              <tr style="font-size:.78rem;color:#d4af37">
+                <th>Date</th><th>Engin</th><th>Type</th><th class="text-center">HM (h)</th>
+                <th>Type Interv.</th><th>État</th><th>Description</th><th>Pièces</th>
+                <th class="text-center">Gasoil<br><small class="text-muted">L</small></th>
+                <th class="text-center">Huiles<br><small class="text-muted">L</small></th>
+                <th class="text-center">Fait<br>Marquant</th>
+              </tr>
+            </thead>
+            <tbody id="extFicheBody"></tbody>
+          </table>
+        </div></div>
+      </div>
+
+      <!-- Graphiques extraction -->
+      <div id="extChartsWrap" style="display:none" class="mt-4">
+        <h6 class="text-warning mb-3"><i class="bi bi-bar-chart-fill"></i> Visualisation graphique</h6>
+        <div class="row g-3">
+          <div class="col-md-4"><div class="card-dark p-3"><h6 class="text-center" style="font-size:.82rem;color:#9a8f6a"><i class="bi bi-bar-chart"></i> Heures de Marche par engin</h6><canvas id="chartExtHM" style="max-height:260px"></canvas></div></div>
+          <div class="col-md-4"><div class="card-dark p-3"><h6 class="text-center" style="font-size:.82rem;color:#9a8f6a"><i class="bi bi-pie-chart"></i> Répartition Gasoil (L)</h6><canvas id="chartExtGasoil" style="max-height:260px"></canvas></div></div>
+          <div class="col-md-4"><div class="card-dark p-3"><h6 class="text-center" style="font-size:.82rem;color:#9a8f6a"><i class="bi bi-diagram-3"></i> Huiles — Radar par engin</h6><canvas id="chartExtHuiles" style="max-height:260px"></canvas></div></div>
+          <div class="col-md-6"><div class="card-dark p-3">
+            <h6 class="text-center mb-2" style="font-size:.82rem;color:#9a8f6a"><i class="bi bi-disc-fill"></i> Pneus changés par engin <small style="font-size:.72rem">(AVG·AVD·ARG·ARD)</small></h6>
+            <canvas id="chartExtPneusEngin" style="max-height:280px"></canvas>
+          </div></div>
+          <div class="col-md-6"><div class="card-dark p-3">
+            <h6 class="text-center mb-2" style="font-size:.82rem;color:#9a8f6a"><i class="bi bi-disc-fill"></i> Pneus changés par type d'engin <small style="font-size:.72rem">(AVG·AVD·ARG·ARD)</small></h6>
+            <canvas id="chartExtPneusType" style="max-height:280px"></canvas>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RAPPORTS -->
+    <div id="rapport" class="section">
+      <h5 class="mb-3"><i class="bi bi-file-earmark-richtext-fill"></i> Génération de Rapports</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-2"><label class="form-label">Date début</label><input type="date" id="rptDateDeb" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Date fin</label><input type="date" id="rptDateFin" class="form-control"></div>
+          <div class="col-md-3">
+            <label class="form-label">Types d'engins <small style="color:#888;font-size:.7rem">(vide = tous)</small></label>
+            <select id="rptType" class="form-select form-select-sm" multiple size="4" style="background:#1a1200;color:#d4af37;border-color:rgba(212,175,55,.3)"></select>
+            <div class="d-flex gap-1 mt-1">
+              <button type="button" class="btn btn-sm" style="font-size:.7rem;padding:2px 8px;background:rgba(212,175,55,.15);color:#d4af37;border:1px solid rgba(212,175,55,.3)" onclick="rptSelectAll(true)">Tous</button>
+              <button type="button" class="btn btn-sm" style="font-size:.7rem;padding:2px 8px;background:rgba(212,175,55,.15);color:#d4af37;border:1px solid rgba(212,175,55,.3)" onclick="rptSelectAll(false)">Aucun</button>
+            </div>
+          </div>
+          <div class="col-md-2"><label class="form-label">Titre du rapport</label><input type="text" id="rptTitle" class="form-control" value="Rapport Gestion Parc Engins"></div>
+          <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100" onclick="generateReport()"><i class="bi bi-eye"></i> Prévisualiser</button></div>
+        </div>
+        <div id="rptExportBtns" style="display:none" class="mt-3 d-flex gap-2 flex-wrap">
+          <span class="text-muted small align-self-center me-1"><i class="bi bi-download"></i> Exporter en :</span>
+          <button onclick="exportReportPDF()" class="btn btn-danger btn-sm"><i class="bi bi-file-pdf-fill"></i> PDF</button>
+          <button onclick="exportReportWord()" class="btn btn-primary btn-sm"><i class="bi bi-file-word-fill"></i> Word (.doc)</button>
+          <button onclick="exportReportPPT()" class="btn btn-warning btn-sm text-dark"><i class="bi bi-easel2-fill"></i> PowerPoint (.pptx)</button>
+          <button onclick="printRapport()" class="btn btn-secondary btn-sm"><i class="bi bi-printer-fill"></i> Imprimer</button>
+        </div>
+      </div>
+      <div id="rptPreviewWrap" style="display:none">
+        <div style="background:#d8d8d8;padding:1.5rem;border-radius:.5rem">
+          <p class="text-center text-muted small mb-3"><i class="bi bi-eye"></i> Aperçu du rapport (format A4)</p>
+          <div id="rptPreview" style="background:#fff;color:#1a1a1a;font-family:Arial,Helvetica,sans-serif;max-width:900px;margin:0 auto;padding:40px 50px;box-shadow:0 4px 24px rgba(0,0,0,.25);border-radius:4px;min-height:400px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUIVI PNEUS -->
+    <div id="suiviPneus" class="section">
+      <h5 class="mb-3"><i class="bi bi-disc-fill"></i> Suivi des Pneus</h5>
+      <div class="card-dark p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2"><label class="form-label">Date d&eacute;but</label><input type="date" id="spDateDeb" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Date fin</label><input type="date" id="spDateFin" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Type d&apos;engin</label><select id="spType" class="form-select"><option value="">Tous les types</option></select></div>
+          <div class="col-md-2"><label class="form-label">Engin</label><select id="spEngin" class="form-select"><option value="">Tous les engins</option></select></div>
+          <div class="col-md-2"><label class="form-label">R&eacute;f&eacute;rence</label><input type="text" id="spRef" class="form-control" placeholder="Filtre r&eacute;f&eacute;rence..."></div>
+          <div class="col-md-2 d-flex align-items-end"><button class="btn btn-warning w-100" onclick="runSuiviPneus()"><i class="bi bi-search"></i> Analyser</button></div>
+        </div>
+      </div>
+      <div id="spKpis" class="row g-2 mb-3"></div>
+      <ul class="nav nav-tabs mb-3" id="spTabs">
+        <li class="nav-item"><a class="nav-link active" href="#" onclick="return spSwitchTab('Ref',this)"><i class="bi bi-tag-fill"></i> Par R&eacute;f&eacute;rence</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Type',this)"><i class="bi bi-collection-fill"></i> Par Type d&apos;engin</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Engin',this)"><i class="bi bi-truck-front-fill"></i> Par Engin</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Histo',this)"><i class="bi bi-clock-history"></i> Historique Complet</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Graph',this)"><i class="bi bi-bar-chart-fill"></i> Graphiques</a></li>
+      </ul>
+      <div id="spTabRef">
+        <div class="card-dark p-3">
+          <h6 class="text-warning mb-2"><i class="bi bi-tag-fill"></i> Total heures us&eacute;es par r&eacute;f&eacute;rence de pneu</h6>
+          <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>R&eacute;f&eacute;rence</th><th>Fournisseur</th><th>Total Heures</th><th>Dur&eacute;e vie moy./chgt</th><th>Nb Engins</th><th>Positions</th><th>Nb Chgts</th><th>Prix moy. (DA)</th><th>Prix/HM (DA/h)</th><th>Dernier engin</th><th>Derni&egrave;re date</th></tr></thead>
+            <tbody id="spRefTable"><tr><td colspan="11" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="spTabType" style="display:none">
+        <div class="card-dark p-3">
+          <h6 class="text-warning mb-2"><i class="bi bi-collection-fill"></i> Suivi par type d&apos;engin</h6>
+          <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>Type d&apos;engin</th><th>Nb engins</th><th>Total Heures</th><th>Pneus Chang&eacute;s</th><th>R&eacute;f&eacute;rences utilis&eacute;es</th><th>Dur&eacute;e vie moy.</th></tr></thead>
+            <tbody id="spTypeTable"><tr><td colspan="6" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="spTabEngin" style="display:none">
+        <div class="card-dark p-3">
+          <h6 class="text-warning mb-2"><i class="bi bi-truck-front-fill"></i> Suivi par engin et par position</h6>
+          <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>Engin</th><th>Type</th><th>Position</th><th>R&eacute;f&eacute;rence</th><th>Fournisseur</th><th>Total Heures</th><th>Nb Chgts</th><th>Prix total (DA)</th><th>Prix/HM (DA/h)</th><th>Dernier chgt</th><th>&Eacute;tat</th></tr></thead>
+            <tbody id="spEnginTable"><tr><td colspan="11" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="spTabHisto" style="display:none">
+        <div class="card-dark p-3">
+          <h6 class="text-warning mb-2"><i class="bi bi-clock-history"></i> Historique complet des changements de pneus</h6>
+          <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>Date</th><th>Engin</th><th>Type Engin</th><th>Position</th><th>R&eacute;f. mont&eacute;e</th><th>Marque</th><th>Fournisseur</th><th>Prix (DA)</th><th class="text-center" style="color:#e74c3c">Cpt D&eacute;montage</th><th class="text-center" style="color:#27ae60">Cpt au changement</th><th>Dur&eacute;e vie (h)</th><th>Prix/HM (DA/h)</th><th>&Eacute;tat</th></tr></thead>
+            <tbody id="spHistoTable"><tr><td colspan="13" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="spTabGraph" style="display:none">
+        <div class="row g-3">
+          <div class="col-md-6"><div class="card-dark p-3"><h6 class="text-warning mb-2"><i class="bi bi-trophy-fill"></i> Marque la plus utilis&eacute;e (nb changements)</h6><div class="chart-container"><canvas id="chartSpMarqueUsage"></canvas></div></div></div>
+          <div class="col-md-6"><div class="card-dark p-3"><h6 class="text-warning mb-2"><i class="bi bi-pie-chart-fill"></i> R&eacute;partition des changements par marque</h6><div class="chart-container"><canvas id="chartSpMarqueRepartition"></canvas></div></div></div>
+          <div class="col-md-6"><div class="card-dark p-3"><h6 class="text-warning mb-2"><i class="bi bi-cash-stack"></i> Co&ucirc;t total par marque (DA)</h6><div class="chart-container"><canvas id="chartSpMarquePrix"></canvas></div></div></div>
+          <div class="col-md-6"><div class="card-dark p-3"><h6 class="text-warning mb-2"><i class="bi bi-graph-up"></i> Prix moyen par changement et par marque (DA)</h6><div class="chart-container"><canvas id="chartSpMarquePrixMoy"></canvas></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMINISTRATION -->
+    <div id="admin" class="section">
+      <h5 class="mb-3"><i class="bi bi-gear-fill"></i> Administration</h5>
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="adminTotalEngins">0</div><div class="kpi-label">Total Engins</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="adminTotalPersonnel">0</div><div class="kpi-label">Total Personnel</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="adminTotalSaisies">0</div><div class="kpi-label">Total Saisies</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-value" id="adminTotalPannes">0</div><div class="kpi-label">Total Pannes</div></div></div>
+      </div>
+      <div class="card-dark p-3">
+        <h6 class="text-warning mb-3">Outils d'Administration</h6>
+        <div class="d-flex gap-3 flex-wrap">
+          <button class="btn btn-primary" onclick="exportAllToExcel()"><i class="bi bi-file-earmark-excel"></i> Exporter Excel</button>
+          <button class="btn btn-outline-light" onclick="exportJSON()"><i class="bi bi-download"></i> Exporter JSON</button>
+          <button class="btn btn-outline-light" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> Importer JSON</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+          <button class="btn btn-danger admin-only" onclick="resetAppData()"><i class="bi bi-trash"></i> Réinitialiser</button>
+        </div>
+      </div>
+      <div class="card-dark mt-3 p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="text-warning m-0"><i class="bi bi-person-badge-fill"></i> Gestion des Utilisateurs</h6>
+          <button class="btn btn-primary btn-sm" onclick="openUserModal()"><i class="bi bi-plus-lg"></i> Nouvel utilisateur</button>
+        </div>
+        <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0"><thead><tr><th>Identifiant</th><th>Nom complet</th><th>Permissions</th><th>Actions</th></tr></thead><tbody id="usersTable"></tbody></table></div>
+        <div class="mt-2" style="font-size:.8rem;color:#9a8f6a"><i class="bi bi-info-circle"></i> L'utilisateur <strong>admin</strong> est intégré et ne peut être supprimé.</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div class="modal fade" id="enginModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Engin</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="enginId"><div class="row g-3"><div class="col-md-6"><label class="form-label">Désignation</label><input type="text" id="eDesignation" class="form-control"></div><div class="col-md-6"><label class="form-label">Immatriculation</label><input type="text" id="eImmat" class="form-control"></div><div class="col-md-4"><label class="form-label">Type</label><input type="text" id="eType" class="form-control"></div><div class="col-md-4"><label class="form-label">Marque</label><input type="text" id="eMarque" class="form-control"></div><div class="col-md-4"><label class="form-label">Modèle</label><input type="text" id="eModele" class="form-control"></div><div class="col-md-6"><label class="form-label">N° Série</label><input type="text" id="eSerie" class="form-control"></div><div class="col-md-3"><label class="form-label">Date MEC</label><input type="date" id="eDateMec" class="form-control"></div><div class="col-md-3"><label class="form-label">Statut</label><select id="eStatut" class="form-select"><option>En service</option><option>En panne</option><option>Maintenance</option><option>Magasin</option></select></div><div class="col-md-3"><label class="form-label">Compteur</label><input type="number" id="eCompteur" class="form-control" value="0"></div></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" onclick="saveEngin()">Enregistrer</button></div></div></div></div>
+<div class="modal fade" id="personnelModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Personnel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="personnelId"><div class="row g-3"><div class="col-md-6"><label class="form-label">Nom</label><input type="text" id="pNom" class="form-control"></div><div class="col-md-6"><label class="form-label">Prénom</label><input type="text" id="pPrenom" class="form-control"></div><div class="col-md-6"><label class="form-label">Fonction</label><select id="pFonction" class="form-select"><option>Conducteur</option><option>Mécanicien</option><option>Opérateur</option><option>Responsable</option><option>Magasinier</option></select></div><div class="col-md-6"><label class="form-label">Équipe</label><select id="pEquipe" class="form-select"><option>Équipe A</option><option>Équipe B</option><option>Équipe C</option></select></div><div class="col-md-6"><label class="form-label">Téléphone</label><input type="text" id="pTel" class="form-control"></div><div class="col-md-6"><label class="form-label">Affectation</label><select id="pAffectation" class="form-select"><option value="">-- Aucun --</option></select></div><div class="col-md-6"><label class="form-label">Date Embauche</label><input type="date" id="pDateEmb" class="form-control"></div></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary" onclick="savePersonnel()">Enregistrer</button></div></div></div></div>
+<div class="modal fade" id="userModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-person-badge"></i> Utilisateur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="userId"><div class="mb-3"><label class="form-label">Identifiant *</label><input type="text" id="uUsername" class="form-control" placeholder="ex: jean.dupont"></div><div class="mb-3"><label class="form-label">Mot de passe *</label><input type="password" id="uPassword" class="form-control" placeholder="Mot de passe"></div><div class="mb-3"><label class="form-label">Nom complet</label><input type="text" id="uNom" class="form-control" placeholder="Prénom NOM"></div><div class="mb-3"><label class="form-label fw-bold text-warning"><i class="bi bi-shield-check"></i> Permissions</label><div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="uCanConsult" checked><label class="form-check-label" for="uCanConsult"><i class="bi bi-eye"></i> Consultation &mdash; voir les données</label></div><div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="uCanSaisie"><label class="form-check-label" for="uCanSaisie"><i class="bi bi-pencil"></i> Saisie &mdash; ajouter / modifier</label></div></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Annuler</button><button type="button" class="btn btn-primary" onclick="saveUser()"><i class="bi bi-save"></i> Enregistrer</button></div></div></div></div>
+<div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Détail Intervention</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="detailContent"></div></div></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
