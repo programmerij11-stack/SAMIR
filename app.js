@@ -1418,8 +1418,12 @@ function computeKPIs() {
   var totalHours = totalFonct + totalPanne + totalArret || 1;
   // Temps d'ouverture = 16h par engin et par jour (une saisie = un engin sur une journée)
   var totalOuverture = HEURES_OUVERTURE * STORE.saisies.length;
-  var dispo = totalOuverture > 0 ? Math.max(0, Math.min(100, ((totalOuverture - totalPanne - totalArret) / totalOuverture) * 100)) : 0;
-  var util = totalOuverture > 0 ? Math.max(0, Math.min(100, (totalFonct / totalOuverture) * 100)) : 0;
+  // Temps disponible = Temps total d'ouverture − temps d'arrêt
+  var totalDispo = totalOuverture - totalPanne - totalArret;
+  // Taux de disponibilité = Temps de fonctionnement (= temps disponible) / Temps total
+  var dispo = totalOuverture > 0 ? Math.max(0, Math.min(100, (totalDispo / totalOuverture) * 100)) : 0;
+  // Taux d'utilisation = Temps d'utilisation (HM) / Temps disponible
+  var util = totalDispo > 0 ? Math.max(0, Math.min(100, (totalFonct / totalDispo) * 100)) : 0;
   return {
     totalE: totalE, actifs: actifs, pannes: pannes, maint: maint,
     dispo: dispo.toFixed(1),
