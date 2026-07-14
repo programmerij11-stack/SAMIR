@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Prototype de gestion intelligente du transport du personnel">
+  <title>NavetteOps — Transport du personnel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynhHkP4lqgMZ7G4r4pGQ+0MZQn0k=" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard" aria-label="NavetteOps">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16V8.8C4 6.15 6.15 4 8.8 4h6.4C17.85 4 20 6.15 20 8.8V16m-16 0h16M7 20v-2m10 2v-2M7 9h10M7.5 13h.01m8.99 0h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </span>
+        <span>Navette<span>Ops</span></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navigation principale">
+        <a class="nav-link active" href="#dashboard">
+          <span class="nav-icon">⌂</span> Vue d'ensemble
+        </a>
+        <a class="nav-link" href="#map-section">
+          <span class="nav-icon">⌖</span> Carte des circuits
+        </a>
+        <a class="nav-link" href="#points-section">
+          <span class="nav-icon">◎</span> Points de ramassage
+        </a>
+        <a class="nav-link" href="#vehicles-section">
+          <span class="nav-icon">▣</span> Flotte
+        </a>
+        <a class="nav-link" href="#assignments-section">
+          <span class="nav-icon">⇄</span> Affectations
+        </a>
+        <a class="nav-link" href="#scenarios-section">
+          <span class="nav-icon">✦</span> Scénarios
+        </a>
+      </nav>
+
+      <div class="sidebar-card">
+        <div class="sidebar-card-icon">↗</div>
+        <p>Optimisation prête</p>
+        <span>Modifiez les effectifs puis relancez le calcul.</span>
+        <button class="sidebar-action" data-action="optimize">Optimiser maintenant</button>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="status-dot"></span>
+        <div><strong>Système actif</strong><small>Dernière synchro locale</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Ouvrir le menu">☰</button>
+        <div>
+          <p class="eyebrow">Lundi · Équipe du matin</p>
+          <h1>Bonjour, responsable transport</h1>
+        </div>
+        <div class="topbar-actions">
+          <label class="shift-select">
+            <span>Service</span>
+            <select id="shiftSelect">
+              <option>Matin · 06:00</option>
+              <option>Après-midi · 14:00</option>
+              <option>Nuit · 22:00</option>
+            </select>
+          </label>
+          <button class="icon-button" id="resetData" title="Réinitialiser les données" aria-label="Réinitialiser">↻</button>
+          <div class="avatar">RT</div>
+        </div>
+      </header>
+
+      <section class="hero" id="dashboard">
+        <div>
+          <span class="hero-badge"><span></span> Planification intelligente</span>
+          <h2>Vos équipes arrivent à l'heure,<br><em>sans kilomètres inutiles.</em></h2>
+          <p>Centralisez les points de ramassage, affectez automatiquement les opérateurs et visualisez les circuits optimisés en quelques secondes.</p>
+        </div>
+        <div class="hero-actions">
+          <button class="button button-primary" data-action="optimize">
+            <span class="button-icon">✦</span> Optimiser les trajets
+          </button>
+          <button class="button button-secondary" data-action="scenarios">Calculer les scénarios</button>
+        </div>
+      </section>
+
+      <section class="metrics-grid" aria-label="Indicateurs principaux">
+        <article class="metric-card metric-operators">
+          <div class="metric-icon">♟</div>
+          <div><span>Opérateurs</span><strong id="totalOperators">0</strong><small id="operatorTrend">11 points actifs</small></div>
+          <div class="metric-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon">▣</div>
+          <div><span>Véhicules mobilisés</span><strong id="usedVehicles">0</strong><small id="fleetSummary">sur 0 disponibles</small></div>
+          <div class="metric-ring" id="vehicleRing"><b>0%</b></div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon">⌁</div>
+          <div><span>Distance totale</span><strong><span id="totalDistance">0</span><sup> km</sup></strong><small id="distanceSaving">À calculer</small></div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon">◷</div>
+          <div><span>Temps estimé</span><strong><span id="totalDuration">0</span><sup> min</sup></strong><small id="averageFill">Remplissage moyen —</small></div>
+        </article>
+      </section>
+
+      <section class="map-layout" id="map-section">
+        <article class="panel map-panel">
+          <div class="panel-header">
+            <div>
+              <span class="section-kicker">Supervision en direct</span>
+              <h3>Carte des circuits</h3>
+            </div>
+            <div class="map-controls">
+              <span class="live-pill"><i></i> Données simulées</span>
+              <button class="small-button" id="fitMap">Tout afficher</button>
+            </div>
+          </div>
+          <div id="map" aria-label="Carte interactive des circuits"></div>
+          <div class="map-legend" id="mapLegend"></div>
+        </article>
+
+        <aside class="panel route-panel">
+          <div class="panel-header">
+            <div>
+              <span class="section-kicker">Circuits calculés</span>
+              <h3>Départs planifiés</h3>
+            </div>
+            <span class="count-badge" id="routeCount">0</span>
+          </div>
+          <div class="route-list" id="routeList">
+            <div class="empty-state">
+              <span>⌁</span>
+              <h4>Aucun circuit calculé</h4>
+              <p>Lancez l'optimisation pour générer les itinéraires.</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section-block" id="points-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Zone principale · Mhamid</span>
+            <h3>Points de ramassage</h3>
+            <p>Ajustez les effectifs, horaires et coordonnées avant le calcul.</p>
+          </div>
+          <button class="button button-secondary" id="addPoint">+ Ajouter un point</button>
+        </div>
+        <div class="panel table-panel">
+          <div class="table-toolbar">
+            <label class="search-field"><span>⌕</span><input id="pointSearch" type="search" placeholder="Rechercher un sous-point…"></label>
+            <div class="table-total"><span>Total à transporter</span><strong id="tableOperatorTotal">0 opérateurs</strong></div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ordre</th>
+                  <th>Sous-point</th>
+                  <th>Adresse / GPS</th>
+                  <th>Opérateurs</th>
+                  <th>Passage</th>
+                  <th>Observation</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pointsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-block" id="vehicles-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Flotte disponible</span>
+            <h3>Véhicules</h3>
+            <p>Capacités et disponibilités prises en compte par l'algorithme.</p>
+          </div>
+          <button class="button button-secondary" id="addVehicle">+ Ajouter un véhicule</button>
+        </div>
+        <div class="vehicle-grid" id="vehicleGrid"></div>
+      </section>
+
+      <section class="section-block" id="assignments-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Ajustement manuel</span>
+            <h3>Tableau des affectations</h3>
+            <p>Réaffectez un passage à un autre véhicule puis recalculez les circuits.</p>
+          </div>
+          <button class="button button-secondary" id="exportAssignments">Exporter CSV</button>
+        </div>
+        <div class="panel table-panel">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Véhicule</th>
+                  <th>Ordre</th>
+                  <th>Point</th>
+                  <th>Opérateurs</th>
+                  <th>Charge après arrêt</th>
+                  <th>Distance estimée</th>
+                  <th>Passage</th>
+                </tr>
+              </thead>
+              <tbody id="assignmentsTable">
+                <tr><td colspan="7"><div class="table-empty">Lancez l'optimisation pour créer les affectations.</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-block" id="scenarios-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Aide à la décision</span>
+            <h3>Scénarios d'optimisation</h3>
+            <p>Comparez automatiquement plusieurs stratégies de transport.</p>
+          </div>
+          <button class="button button-primary compact" data-action="scenarios">Recalculer</button>
+        </div>
+        <div class="scenario-grid" id="scenarioGrid">
+          <article class="scenario-placeholder"><span>✦</span><p>Calculez les scénarios pour afficher les recommandations.</p></article>
+        </div>
+      </section>
+
+      <footer>
+        <span>NavetteOps · Prototype de démonstration</span>
+        <span>Les durées et distances sont des estimations à vol d'oiseau majorées.</span>
+      </footer>
+    </main>
+  </div>
+
+  <dialog id="pointDialog">
+    <form method="dialog" id="pointForm">
+      <div class="dialog-header"><div><span class="section-kicker">Point de ramassage</span><h3 id="pointDialogTitle">Ajouter un point</h3></div><button class="dialog-close" value="cancel" aria-label="Fermer">×</button></div>
+      <input type="hidden" id="pointId">
+      <div class="form-grid">
+        <label class="form-field full"><span>Nom du sous-point</span><input id="pointName" required></label>
+        <label class="form-field full"><span>Adresse</span><input id="pointAddress" required></label>
+        <label class="form-field"><span>Latitude</span><input id="pointLat" type="number" step="0.000001" required></label>
+        <label class="form-field"><span>Longitude</span><input id="pointLng" type="number" step="0.000001" required></label>
+        <label class="form-field"><span>Opérateurs</span><input id="pointOperators" type="number" min="0" required></label>
+        <label class="form-field"><span>Heure de passage</span><input id="pointTime" type="time" required></label>
+        <label class="form-field full"><span>Observation</span><textarea id="pointNote" rows="3"></textarea></label>
+      </div>
+      <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button><button class="button button-primary" id="savePoint" value="default">Enregistrer</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="vehicleDialog">
+    <form method="dialog" id="vehicleForm">
+      <div class="dialog-header"><div><span class="section-kicker">Gestion de flotte</span><h3 id="vehicleDialogTitle">Ajouter un véhicule</h3></div><button class="dialog-close" value="cancel" aria-label="Fermer">×</button></div>
+      <input type="hidden" id="vehicleId">
+      <div class="form-grid">
+        <label class="form-field"><span>Nom du véhicule</span><input id="vehicleName" required></label>
+        <label class="form-field"><span>Type</span><select id="vehicleType"><option>Bus</option><option>Minibus</option></select></label>
+        <label class="form-field"><span>Capacité maximale</span><input id="vehicleCapacity" type="number" min="1" required></label>
+        <label class="form-field"><span>Chauffeur affecté</span><input id="vehicleDriver" required></label>
+        <label class="form-field full"><span>Statut</span><select id="vehicleStatus"><option>Disponible</option><option>En mission</option><option>Maintenance</option></select></label>
+      </div>
+      <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button><button class="button button-primary" id="saveVehicle" value="default">Enregistrer</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
