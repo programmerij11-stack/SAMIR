@@ -1507,7 +1507,7 @@ function updateDashFlotteTable() {
       return '<tr style="background:'+(i%2===0?'transparent':'rgba(255,255,255,.04)')+'">'
         +'<td style="font-weight:600;font-size:.82rem">'+x.eng.designation+'</td>'
         +'<td class="text-center" style="color:#d4af37">'+x.hm.toFixed(1)+'</td>'
-        +'<td class="text-center" style="color:#3498db">'+to.toFixed(1)+'</td>'
+        +'<td class="text-center" style="color:'+dispoColor(dispo)+';font-weight:700">'+(dispo!==null?dispo+'%':'—')+'</td>'
         +'<td class="text-center" style="color:#e74c3c">'+x.arret.toFixed(1)+'</td>'
         +'<td class="text-center" style="color:'+dispoColor(dispo)+';font-weight:700">'+(dispo!==null?dispo+'%':'—')+'</td>'
         +'<td class="text-center" style="color:'+dispoColor(tu)+';font-weight:700">'+(tu!==null?tu+'%':'—')+'</td>'
@@ -1523,7 +1523,7 @@ function updateDashFlotteTable() {
     tfoot.innerHTML = '<tr style="border-top:2px solid '+accentColor+'">'
       +'<td style="color:'+accentColor+';font-weight:800;font-size:.82rem">TOTAL</td>'
       +'<td class="text-center" style="color:#d4af37;font-weight:700">'+totHm.toFixed(1)+'</td>'
-      +'<td class="text-center" style="color:#3498db;font-weight:700">'+totTo.toFixed(1)+'</td>'
+      +'<td class="text-center" style="color:'+dispoColor(totDispo)+';font-weight:800">'+(totDispo!==null?totDispo+'%':'—')+'</td>'
       +'<td class="text-center" style="color:#e74c3c;font-weight:700">'+totArret.toFixed(1)+'</td>'
       +'<td class="text-center" style="color:'+dispoColor(totDispo)+';font-weight:800">'+(totDispo!==null?totDispo+'%':'—')+'</td>'
       +'<td class="text-center" style="color:'+dispoColor(totTu)+';font-weight:800">'+(totTu!==null?totTu+'%':'—')+'</td>'
@@ -3066,11 +3066,12 @@ function generateReport() {
   filtered.forEach(function(s) {
     var eng = STORE.engins.find(function(e){ return e.id === s.enginId; });
     if (!eng) return;
-    if (!byEnginMap[s.enginId]) byEnginMap[s.enginId] = {eng:eng, heures:0, gasoil:0, huiles:0, huilesByType:{}, pneus:{total:0,avg:0,avd:0,arg:0,ard:0}, flex:0, fms:[]};
+    if (!byEnginMap[s.enginId]) byEnginMap[s.enginId] = {eng:eng, heures:0, mlf:0, gasoil:0, huiles:0, huilesByType:{}, pneus:{total:0,avg:0,avd:0,arg:0,ard:0}, flex:0, fms:[]};
     var g = byEnginMap[s.enginId];
     var _cF2=+(s.compteurFin||0), _cD2=+(s.compteurDebut||0);
     var _hm2 = (_cD2>0 && _cF2>_cD2) ? (_cF2-_cD2) : Math.max(0, +(s.difference||s.duree||s.heuresFonct||0));
     g.heures += _hm2;
+    g.mlf += +(s.mlf || 0);
     g.gasoil  += +(s.gasoil || 0);
     if (s.huiles && s.huiles.length) {
       s.huiles.forEach(function(h){ var ht=h.type||'?'; g.huiles += +(h.qte||0); g.huilesByType[ht]=(g.huilesByType[ht]||0)+(+(h.qte||0)); });
@@ -3100,7 +3101,7 @@ function generateReport() {
   // Inclure les engins "En service" sans saisie dans la période (affichés à 0) — uniquement les types sélectionnés
   STORE.engins.forEach(function(eng) {
     if (!byEnginMap[eng.id] && eng.statut === 'En service' && activeTypes.indexOf(eng.type) > -1) {
-      entries.push({eng:eng, heures:0, gasoil:0, huiles:0, pneus:{total:0,avg:0,avd:0,arg:0,ard:0}, flex:0, fms:[]});
+      entries.push({eng:eng, heures:0, mlf:0, gasoil:0, huiles:0, huilesByType:{}, pneus:{total:0,avg:0,avd:0,arg:0,ard:0}, flex:0, fms:[]});
     }
   });
   var curCptMap = {};
@@ -3113,7 +3114,7 @@ function generateReport() {
   // Group entries dynamically by selected type
   function buildByTypeMap(ents){
     var m={};
-    ents.forEach(function(g){ var t=g.eng.type||'Autre'; if(!m[t]) m[t]={heures:0,gasoil:0,huiles:0,pneus:0,count:0}; m[t].heures+=g.heures; m[t].gasoil+=g.gasoil; m[t].huiles+=g.huiles; m[t].pneus+=g.pneus.total; m[t].count++; });
+    ents.forEach(function(g){ var t=g.eng.type||'Autre'; if(!m[t]) m[t]={heures:0,mlf:0,gasoil:0,huiles:0,pneus:0,count:0}; m[t].heures+=g.heures; m[t].mlf+=(g.mlf||0); m[t].gasoil+=g.gasoil; m[t].huiles+=g.huiles; m[t].pneus+=g.pneus.total; m[t].count++; });
     return m;
   }
   var byTypeMap = buildByTypeMap(entries);
@@ -3130,6 +3131,7 @@ function generateReport() {
     var g = typeGroups[t];
     groupTotals[t] = {
       h: g.reduce(function(s,x){return s+x.heures;},0),
+      mlf: g.reduce(function(s,x){return s+(x.mlf||0);},0),
       g: g.reduce(function(s,x){return s+x.gasoil;},0),
       hu: g.reduce(function(s,x){return s+x.huiles;},0),
       p: g.reduce(function(s,x){return s+x.pneus.total;},0)
@@ -3153,15 +3155,26 @@ function generateReport() {
     return '<td style="'+TD+';color:'+c+';font-weight:700">'+(ecart>0?'+':'')+ecart+arr+'</td>';
   }
   // Helper: build one part section (10t or Dumper)
-  function buildPartHtml(label, color, ents, btMap, totHp, totGp, totHup, totPp, suffix) {
-    var kpi = [{v:ents.length,l:'Engins',c:color},{v:totHp.toFixed(1)+'h',l:'HM',c:'#4bc0c0'},{v:totGp.toFixed(0)+'L',l:'Gasoil',c:'#e67e22'},{v:totHup.toFixed(1)+'L',l:'Huiles',c:'#9966ff'},{v:totPp,l:'Pneus',c:'#ff6384'}]
+  function buildPartHtml(label, color, ents, btMap, totHp, totGp, totHup, totPp, totMlfp, suffix) {
+    var useMlf = (totMlfp||0) > 0;
+    var kpi = [{v:ents.length,l:'Engins',c:color},(useMlf?{v:(totMlfp||0).toFixed(0)+'m',l:'MLF',c:'#4bc0c0'}:{v:totHp.toFixed(1)+'h',l:'HM',c:'#4bc0c0'}),{v:totGp.toFixed(0)+'L',l:'Gasoil',c:'#e67e22'},{v:totHup.toFixed(1)+'L',l:'Huiles',c:'#9966ff'},{v:totPp,l:'Pneus',c:'#ff6384'}]
       .map(function(k){return '<div style="background:#f9f6ef;border-radius:8px;padding:10px 6px;text-align:center;border-top:4px solid '+k.c+'"><div style="font-size:1.15rem;font-weight:800;color:'+k.c+'">'+k.v+'</div><div style="font-size:.68rem;color:#666;margin-top:2px">'+k.l+'</div></div>';}).join('');
-    var hmEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">HM Réel (h)</th><th style="'+TH+'">Budget / engin (h)</th><th style="'+TH+'">Écart</th></tr></thead>';
-    var hmERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var cnt=ents.filter(function(x){return x.eng.type===g.eng.type;}).length||1;var bh=b.hm?+(b.hm/cnt).toFixed(1):0;var ec=bh?+(g.heures-bh).toFixed(1):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+';font-weight:700">'+g.heures.toFixed(1)+'</td><td style="'+TD+'">'+(bh?bh+'h <small style="color:#999">(÷'+cnt+')</small>':'—')+'</td>'+ecartTd(ec,false)+'</tr>';}).join('')+'</tbody>';
-    var gasEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/HM</th><th style="'+TH+'">Budget</th><th style="'+TH+'">Écart</th></tr></thead>';
-    var gasERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var br=b.gasoil||0;var rr=g.heures>0?+(g.gasoil/g.heures).toFixed(2):0;var ec=br?+(rr-br).toFixed(2):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.gasoil.toFixed(0)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td><td style="'+TD+'">'+( br||'—')+'</td>'+ecartTd(ec,true)+'</tr>';}).join('')+'</tbody>';
-    var huiEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/HM</th><th style="'+TH+'">Budget</th><th style="'+TH+'">Écart</th></tr></thead>';
-    var huiERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var br=b.huile||0;var rr=g.heures>0?+(g.huiles/g.heures).toFixed(3):0;var ec=br?+(rr-br).toFixed(3):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.huiles.toFixed(1)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td><td style="'+TD+'">'+( br||'—')+'</td>'+ecartTd(ec,true)+'</tr>';}).join('')+'</tbody>';
+    var hmEHdr, hmERows, gasEHdr, gasERows, huiEHdr, huiERows;
+    if (useMlf) {
+      hmEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">MLF (m)</th></tr></thead>';
+      hmERows='<tbody>'+ents.map(function(g,i){return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+';font-weight:700">'+(g.mlf||0).toFixed(1)+'</td></tr>';}).join('')+'</tbody>';
+      gasEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/MLF</th></tr></thead>';
+      gasERows='<tbody>'+ents.map(function(g,i){var rr=(g.mlf||0)>0?+(g.gasoil/g.mlf).toFixed(3):0;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.gasoil.toFixed(0)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td></tr>';}).join('')+'</tbody>';
+      huiEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/MLF</th></tr></thead>';
+      huiERows='<tbody>'+ents.map(function(g,i){var rr=(g.mlf||0)>0?+(g.huiles/g.mlf).toFixed(4):0;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.huiles.toFixed(1)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td></tr>';}).join('')+'</tbody>';
+    } else {
+      hmEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">HM Réel (h)</th><th style="'+TH+'">Budget / engin (h)</th><th style="'+TH+'">Écart</th></tr></thead>';
+      hmERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var cnt=ents.filter(function(x){return x.eng.type===g.eng.type;}).length||1;var bh=b.hm?+(b.hm/cnt).toFixed(1):0;var ec=bh?+(g.heures-bh).toFixed(1):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+';font-weight:700">'+g.heures.toFixed(1)+'</td><td style="'+TD+'">'+(bh?bh+'h <small style="color:#999">(÷'+cnt+')</small>':'—')+'</td>'+ecartTd(ec,false)+'</tr>';}).join('')+'</tbody>';
+      gasEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/HM</th><th style="'+TH+'">Budget</th><th style="'+TH+'">Écart</th></tr></thead>';
+      gasERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var br=b.gasoil||0;var rr=g.heures>0?+(g.gasoil/g.heures).toFixed(2):0;var ec=br?+(rr-br).toFixed(2):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.gasoil.toFixed(0)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td><td style="'+TD+'">'+( br||'—')+'</td>'+ecartTd(ec,true)+'</tr>';}).join('')+'</tbody>';
+      huiEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Conso (L)</th><th style="'+TH+'">Ratio L/HM</th><th style="'+TH+'">Budget</th><th style="'+TH+'">Écart</th></tr></thead>';
+      huiERows='<tbody>'+ents.map(function(g,i){var b=STORE.budgets.find(function(x){return x.type===g.eng.type;})||{};var br=b.huile||0;var rr=g.heures>0?+(g.huiles/g.heures).toFixed(3):0;var ec=br?+(rr-br).toFixed(3):null;return '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.huiles.toFixed(1)+'</td><td style="'+TD+';font-weight:700">'+rr+'</td><td style="'+TD+'">'+( br||'—')+'</td>'+ecartTd(ec,true)+'</tr>';}).join('')+'</tbody>';
+    }
     var pnEW=ents.filter(function(g){return g.pneus.total>0;});
     var pnEHdr='<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">AVG</th><th style="'+TH+'">AVD</th><th style="'+TH+'">ARG</th><th style="'+TH+'">ARD</th><th style="'+TH+'">Total</th><th style="'+TH+'">Durée vie moy.</th></tr></thead>';
     var pnERows='<tbody>'+pnEW.map(function(g,i){return '<tr style="background:'+(i%2===0?'#fff':'#f0fff8')+'"><td style="'+TDL+'">'+g.eng.designation+'</td><td style="'+TD+'">'+g.pneus.avg+'</td><td style="'+TD+'">'+g.pneus.avd+'</td><td style="'+TD+'">'+g.pneus.arg+'</td><td style="'+TD+'">'+g.pneus.ard+'</td><td style="'+TD+';font-weight:700">'+g.pneus.total+'</td><td style="'+TD+'">'+(g.heures>0&&g.pneus.total>0?(g.heures/g.pneus.total).toFixed(0)+'h/pneu':'—')+'</td></tr>';}).join('')+'</tbody>';
@@ -3171,7 +3184,7 @@ function generateReport() {
       +'<i class="bi bi-truck-front-fill"></i> Partie '+suffix+' — '+label+'</div>'
       +'<div style="padding:14px">'
       +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">'+kpi+'</div>'
-      +sHead('HM — Heures de Marche')+tbl(hmEHdr,hmERows)+'<canvas id="rptChartHM'+suffix+'" height="70"></canvas></div>'
+      +sHead(useMlf?'MLF — Mètre Linéaire Foré':'HM — Heures de Marche')+tbl(hmEHdr,hmERows)+'<canvas id="rptChartHM'+suffix+'" height="70"></canvas></div>'
       +sHead('Gasoil','#e67e22')+tbl(gasEHdr,gasERows)+'<canvas id="rptChartGas'+suffix+'" height="70"></canvas></div>'
       +sHead('Huiles','#9b59b6')+tbl(huiEHdr,huiERows)+'<canvas id="rptChartHui'+suffix+'" height="70"></canvas></div>'
       +sHead('Pneumatiques','#16a085')+(pnEW.length>0?tbl(pnEHdr,pnERows):'<p style="color:#999;font-style:italic;font-size:.78rem">Aucun pneu changé.</p>')+'</div>'
@@ -3335,7 +3348,7 @@ function generateReport() {
         var gt = groupTotals[t];
         var color = colors[i % colors.length];
         var suffix = '_'+t.replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
-        htmlParts += buildPartHtml(t, color, g, m, gt.h, gt.g, gt.hu, gt.p, suffix);
+        htmlParts += buildPartHtml(t, color, g, m, gt.h, gt.g, gt.hu, gt.p, gt.mlf, suffix);
       });
       return htmlParts;
     })()
@@ -3418,9 +3431,21 @@ function _renderRptCharts(chartGroups, statusCounts, fmStatusCounts, fmTotal) {
     if (horiz) { o.indexAxis='y'; o.scales.x.beginAtZero=true; o.scales.y.grid={color:'transparent'}; o.layout={padding:{right:40}}; }
     return o;
   };
-  function drawGroupCharts(ents, suffix, hmColor, gasColor, huiColor) {
+  function drawGroupCharts(ents, suffix, hmColor, gasColor, huiColor, useMlf) {
     if (!ents.length) return;
     var lbE = ents.map(function(g){return g.eng.designation;});
+    if (useMlf) {
+      mkChart('rptChartHM'+suffix,{type:'bar',data:{labels:lbE,datasets:[
+        {label:'MLF (m)',data:ents.map(function(g){return +(g.mlf||0).toFixed(1);}),backgroundColor:hmColor,borderRadius:3}
+      ],plugins:DL},options:baseOpts('MLF — Mètre Linéaire Foré',true)});
+      mkChart('rptChartGas'+suffix,{type:'bar',data:{labels:lbE,datasets:[
+        {label:'Ratio L/MLF',data:ents.map(function(g){return (g.mlf||0)>0?+(g.gasoil/g.mlf).toFixed(3):0;}),backgroundColor:gasColor,borderRadius:3}
+      ],plugins:DL},options:baseOpts('Gasoil L/MLF')});
+      mkChart('rptChartHui'+suffix,{type:'bar',data:{labels:lbE,datasets:[
+        {label:'Ratio L/MLF',data:ents.map(function(g){return (g.mlf||0)>0?+(g.huiles/g.mlf).toFixed(4):0;}),backgroundColor:huiColor,borderRadius:3}
+      ],plugins:DL},options:baseOpts('Huiles L/MLF')});
+      return;
+    }
     // HM
     mkChart('rptChartHM'+suffix,{type:'bar',data:{labels:lbE,datasets:[
       {label:'HM R\u00e9el',data:ents.map(function(g){return +g.heures.toFixed(1);}),backgroundColor:hmColor,borderRadius:3},
@@ -3442,7 +3467,7 @@ function _renderRptCharts(chartGroups, statusCounts, fmStatusCounts, fmTotal) {
     var c = chartColors[i % chartColors.length];
     var c2 = c.replace('.8)', '.7)');
     var suffix = '_'+grp.type.replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
-    drawGroupCharts(grp.entries, suffix, c, c2, c2);
+    drawGroupCharts(grp.entries, suffix, c, c2, c2, (grp.totals && grp.totals.mlf>0));
   });
   // FM statuts bar chart
   if (fmStatusCounts && Object.keys(fmStatusCounts).length>0) {
