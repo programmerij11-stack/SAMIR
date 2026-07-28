@@ -335,23 +335,37 @@ function getEntretienTypeStyle(type) {
   };
   return s[type] || {bg:'#1a1a1a', color:'#888', border:'#444', label:'?h'};
 }
+// HM cumulées d'un engin = somme des différences de compteur (compteurFin − compteurDebut),
+// gardées >= 0. Robuste aux remises à zéro / remplacements de compteur.
+// uptoDate (optionnel) : ne cumule que les saisies dont dateDebut <= uptoDate.
+function getEnginCumulHM(enginId, uptoDate) {
+  var total = 0;
+  STORE.saisies.forEach(function(s) {
+    if (s.enginId !== enginId) return;
+    if (uptoDate && (s.dateDebut||'') > uptoDate) return;
+    var cF = +(s.compteurFin||0), cD = +(s.compteurDebut||0);
+    var hm = (cD>0 && cF>cD) ? (cF-cD) : Math.max(0, +(s.difference||s.duree||s.heuresFonct||0));
+    total += hm;
+  });
+  return total;
+}
 function getEnginEntretienHistory(enginId) {
+  // Chaque entretien est positionné selon les HM cumulées à sa date (et non le compteur brut).
   var hist = [];
   STORE.saisies.forEach(function(s) {
-    if (s.enginId === enginId && s.entretienFait && s.entretienCompteur)
-      hist.push({cpt: +s.entretienCompteur, type: s.entretienFait, date: s.dateDebut || ''});
+    if (s.enginId === enginId && s.entretienFait)
+      hist.push({cpt: +getEnginCumulHM(enginId, s.dateDebut||'').toFixed(1), type: s.entretienFait, date: s.dateDebut || ''});
   });
-  hist = hist.filter(function(v,i,a){ return a.findIndex(function(x){return x.cpt===v.cpt;})===i; });
+  hist = hist.filter(function(v,i,a){ return a.findIndex(function(x){return x.date===v.date && x.type===v.type;})===i; });
   hist.sort(function(a,b){ return a.cpt - b.cpt; });
   var lastType = hist.length > 0 ? (hist[hist.length-1].type || '') : '';
   var lastIdx  = ENTRETIEN_CYCLE.indexOf(lastType);
   var nextType = ENTRETIEN_CYCLE[(lastIdx + 1) % ENTRETIEN_CYCLE.length];
   var lastAt   = hist.length > 0 ? hist[hist.length-1].cpt : 0;
-  return {hist: hist, lastAt: lastAt, nextAt: lastAt + 250, lastType: lastType, nextType: nextType};
+  return {hist: hist, lastAt: lastAt, nextAt: lastAt + 250, lastType: lastType, nextType: nextType, total: +getEnginCumulHM(enginId).toFixed(1)};
 }
 function updateEntretienInfo() {
   var enginId = document.getElementById('sEngin').value;
-  var compteur = +document.getElementById('sCompteurFin').value || 0;
   var el = document.getElementById('entretienInfo');
   if (!el) return;
   if (!enginId) {
@@ -359,14 +373,17 @@ function updateEntretienInfo() {
     el.innerHTML = '<i class="bi bi-info-circle"></i> Sélectionnez un engin pour voir l\'état d\'entretien.';
     return;
   }
-  var eng = STORE.engins.find(function(e) { return e.id === enginId; });
-  if (!compteur && eng) compteur = eng.compteur || 0;
+  var eh = getEnginEntretienHistory(enginId);
+  // HM cumulées = total des différences enregistrées + la différence en cours de saisie (nouvelle saisie)
+  var saisieId = document.getElementById('saisieId').value;
+  var cF = +(document.getElementById('sCompteurFin').value||0), cD = +(document.getElementById('sCompteurDebut').value||0);
+  var curDiff = (cF>cD && cD>=0) ? (cF-cD) : Math.max(0, +(document.getElementById('sDifference').value||0));
+  var compteur = +(eh.total + (saisieId ? 0 : curDiff)).toFixed(1);
   if (!compteur) {
     el.style.cssText = 'background:#100e00;font-size:.85rem;color:#9a8f6a;border-left:none';
-    el.innerHTML = '<i class="bi bi-info-circle"></i> Saisissez le compteur fin pour calculer le prochain entretien.';
+    el.innerHTML = '<i class="bi bi-info-circle"></i> Aucune HM cumulée pour cet engin — saisissez le compteur début/fin pour calculer le prochain entretien.';
     return;
   }
-  var eh = getEnginEntretienHistory(enginId);
   var lastEntretienAt = eh.lastAt;
   var nextEntretienAt = eh.nextAt;
   var nextType        = eh.nextType;
@@ -441,9 +458,8 @@ function renderProchainEntretiens() {
   if (!el) return;
   if (!STORE.engins.length) { el.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#666">Aucun engin.</td></tr>'; return; }
   el.innerHTML = STORE.engins.map(function(eng) {
-    var curCpt = +(eng.compteur||0);
-    STORE.saisies.forEach(function(s){ if (s.enginId===eng.id && (s.compteurFin||0)>curCpt) curCpt=s.compteurFin; });
     var eh2 = getEnginEntretienHistory(eng.id);
+    var curCpt = eh2.total;
     var nextAt = eh2.nextAt, lastAt = eh2.lastAt, nextType2 = eh2.nextType;
     var rem = +(nextAt - curCpt).toFixed(1);
     var pct = Math.min(100, Math.max(0, Math.round((curCpt - lastAt) / 250 * 100)));
@@ -509,14 +525,11 @@ function runPlanImminents() {
   STORE.engins.forEach(function(eng) {
     if (eng.statut === 'Au magasin') return;
     if (typeF && (eng.type||'').toLowerCase().indexOf(typeF) === -1) return;
-    // Get latest compteur up to refDate
-    var curCpt = +(eng.compteur || 0);
+    // HM cumulées jusqu'à la date de référence
     var saisiesForEng = STORE.saisies.filter(function(s) {
       return s.enginId === eng.id && (!refDate || (s.dateDebut||'') <= refDate);
     });
-    saisiesForEng.forEach(function(s) {
-      if ((s.compteurFin||0) > curCpt) curCpt = +(s.compteurFin||0);
-    });
+    var curCpt = +getEnginCumulHM(eng.id, refDate).toFixed(1);
     // Compute next maintenance
     var eh = getEnginEntretienHistory(eng.id);
     var nextAt   = eh.nextAt;
@@ -607,7 +620,7 @@ function runPlanImminents() {
       +'</div>'
       +'</div>'
       +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:.75rem">'
-      +'<span style="color:#aaa">Compteur actuel : <strong style="color:#d4af37">'+r.curCpt.toFixed(0)+'h</strong></span>'
+      +'<span style="color:#aaa">HM cumulées : <strong style="color:#d4af37">'+r.curCpt.toFixed(0)+'h</strong></span>'
       +'<span style="color:#aaa">Dernier entretien : <strong style="color:#5adb7a">'+(r.lastAt?r.lastAt+'h':'Aucun')+'</strong></span>'
       +'<span style="color:#aaa">Avancement : <strong style="color:'+borderCol+'">'+pct+'%</strong></span>'
       +'</div>'
@@ -686,11 +699,10 @@ function renderPlanningWeek() {
   });
   // For each engine compute: curCpt, lastAt, nextAt, avgHPerDay, estimatedDate
   var engineData = engins.map(function(eng) {
-    var curCpt = +(eng.compteur||0);
-    STORE.saisies.forEach(function(s){ if (s.enginId===eng.id && (s.compteurFin||0)>curCpt) curCpt=s.compteurFin; });
-    var lastAt = 0;
-    STORE.saisies.forEach(function(s){ if (s.enginId===eng.id && s.entretienFait && (s.entretienCompteur||0)>lastAt) lastAt=s.entretienCompteur; });
-    var nextAt = lastAt + 250;
+    var ehW = getEnginEntretienHistory(eng.id);
+    var curCpt = ehW.total;
+    var lastAt = ehW.lastAt;
+    var nextAt = ehW.nextAt;
     var rem = +(nextAt - curCpt).toFixed(1);
     // Average hours per day (last 30 days)
     var cutoff = new Date(today); cutoff.setDate(today.getDate() - 30);
@@ -821,7 +833,7 @@ function renderPlanningEntretien() {
   thead.innerHTML = '<tr style="background:#0d0b00;color:#d4af37">'
     + '<th style="min-width:130px">Engin</th>'
     + '<th>Type</th>'
-    + '<th class="text-center">Compteur actuel</th>'
+    + '<th class="text-center">HM cumulées</th>'
     + '<th>Historique entretiens <small style="font-weight:400;color:#888">(ordre chronologique)</small></th>'
     + '<th class="text-center" style="color:#5bc8ff">Prochain <small style="font-weight:400">(dernier+250h)</small></th>'
     + '<th class="text-center">Restant</th>'
@@ -829,11 +841,8 @@ function renderPlanningEntretien() {
     + '</tr>';
   var depasseList = [], imminentList = [];
   var rows = engins.map(function(eng) {
-    var curCpt = +(eng.compteur || 0);
-    STORE.saisies.forEach(function(s) {
-      if (s.enginId === eng.id && (s.compteurFin || 0) > curCpt) curCpt = s.compteurFin;
-    });
     var ehP = getEnginEntretienHistory(eng.id);
+    var curCpt = ehP.total;
     var hist = ehP.hist, lastAt = ehP.lastAt, nextAt = ehP.nextAt, nextType = ehP.nextType;
     var rem = +(nextAt - curCpt).toFixed(1);
     // History chips avec couleur par type de service
