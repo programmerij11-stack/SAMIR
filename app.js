@@ -1136,16 +1136,17 @@ function addHuileLine(data) {
   var d = document.createElement('div');
   d.className = 'row g-2 mb-2 align-items-end';
   var coutVal = data ? (data.cout || '') : '';
-  var incidentChecked = (data && data.incident) ? 'checked' : '';
+  var motif = (data && data.motif) ? data.motif : ((data && data.incident) ? 'Incident' : 'Consommation');
   d.innerHTML =
     '<div class="col-md-3"><select class="form-select form-select-sm huile-type" onchange="calcHuileCout(this)"><option value="">-- Type --</option><option>HV 68</option><option>S30</option><option>S50</option><option>S15W40</option><option>15W40 Normal</option><option>AUTRAN</option><option>85W140</option></select></div>'
     +'<div class="col-md-2"><input type="number" class="form-control form-control-sm huile-qte" step="0.5" placeholder="Qté (L)" value="'+(data?data.qte:0)+'" oninput="calcHuileCout(this)"></div>'
     +'<div class="col-md-2"><input type="number" class="form-control form-control-sm huile-cout" placeholder="Coût DH" value="'+coutVal+'" readonly style="background:rgba(212,175,55,.08);color:#d4af37"></div>'
     +'<div class="col-md-2"><input type="text" class="form-control form-control-sm huile-obs" placeholder="Observation" value="'+(data?data.obs:'')+'"></div>'
-    +'<div class="col-md-2"><div class="form-check d-flex align-items-center gap-1 mt-1" title="Cocher si cet apport d\'huile est lié à un incident"><input class="form-check-input huile-incident" type="checkbox" '+incidentChecked+' id="hInc'+idx+'" onchange="this.closest(\'.row\').style.background=this.checked?\'rgba(220,53,69,.08)\':\'\'" style="cursor:pointer;width:1.1rem;height:1.1rem"><label class="form-check-label text-danger" for="hInc'+idx+'" style="font-size:.72rem;cursor:pointer"><i class="bi bi-exclamation-triangle-fill"></i> Incident</label></div></div>'
+    +'<div class="col-md-2"><select class="form-select form-select-sm huile-motif" title="Motif de l\'apport d\'huile" onchange="this.closest(\'.row\').style.background=this.value===\'Incident\'?\'rgba(220,53,69,.08)\':\'\'"><option value="Consommation">Consommation</option><option value="Entretien">Entretien</option><option value="Incident">Incident</option><option value="Autres">Autres</option></select></div>'
     +'<div class="col-md-1"><button class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.row\').remove()"><i class="bi bi-x"></i></button></div>';
   if (data && data.type) d.querySelector('.huile-type').value = data.type;
-  if (data && data.incident) d.style.background = 'rgba(220,53,69,.08)';
+  d.querySelector('.huile-motif').value = motif;
+  if (motif === 'Incident') d.style.background = 'rgba(220,53,69,.08)';
   c.appendChild(d);
 }
 function getHuiles() {
@@ -1157,9 +1158,10 @@ function getHuiles() {
     var obs = r.querySelector('.huile-obs').value;
     var coutEl = r.querySelector('.huile-cout');
     var cout = coutEl ? (+coutEl.value || 0) : 0;
-    var incidentEl = r.querySelector('.huile-incident');
-    var incident = incidentEl ? incidentEl.checked : false;
-    if (type || qte) arr.push({type:type, qte:qte, obs:obs, cout:cout, incident:incident});
+    var motifEl = r.querySelector('.huile-motif');
+    var motif = motifEl ? motifEl.value : 'Consommation';
+    var incident = (motif === 'Incident');
+    if (type || qte) arr.push({type:type, qte:qte, obs:obs, cout:cout, motif:motif, incident:incident});
   });
   return arr;
 }
@@ -1370,7 +1372,7 @@ function showDetail(id) {
   h += '<tr><td><strong>MLF</strong></td><td>'+(x.mlf>0?(x.mlf+' m'):'-')+'</td></tr>';
   h += '<tr><td><strong>Gasoil</strong></td><td>'+(x.gasoil||0)+' L (Coût: '+(x.gasoilCout||0)+' DH)</td></tr>';
   if (x.huiles && x.huiles.length) {
-    h += '<tr><td><strong>Huiles</strong></td><td>' + x.huiles.map(function(hu) { return hu.type+': '+hu.qte+'L'+(hu.obs?' ('+hu.obs+')':''); }).join('<br>') + '</td></tr>';
+    h += '<tr><td><strong>Huiles</strong></td><td>' + x.huiles.map(function(hu) { var mo=hu.motif||(hu.incident?'Incident':''); return hu.type+': '+hu.qte+'L'+(mo?' ['+mo+']':'')+(hu.obs?' ('+hu.obs+')':''); }).join('<br>') + '</td></tr>';
   }
   var pPos = ['pneuAvg','pneuAvd','pneuArg','pneuArd'];
   var pLabels = ['AVG','AVD','ARG','ARD'];
@@ -3308,6 +3310,56 @@ function generateReport() {
     });
     return html;
   }
+  // --- S3c: Huiles par motif (incident / entretien / consommation / autres) ---
+  function huileMotif(s, h) {
+    if (h && h.motif) return h.motif;
+    if (h && h.incident) return 'Incident';
+    return s.entretienFait ? 'Entretien' : 'Consommation';
+  }
+  function buildOilMotifSection() {
+    var MOTIFS = ['Incident','Entretien','Consommation','Autres'];
+    var MOTIF_COLORS = {Incident:'#c0392b', Entretien:'#2980b9', Consommation:'#27ae60', Autres:'#7f8c8d'};
+    var totals = {Incident:0, Entretien:0, Consommation:0, Autres:0};
+    var byEngType = {};
+    function add(et, motif, qte) {
+      if (MOTIFS.indexOf(motif) === -1) motif = 'Autres';
+      totals[motif] += qte;
+      if (!byEngType[et]) byEngType[et] = {Incident:0, Entretien:0, Consommation:0, Autres:0};
+      byEngType[et][motif] += qte;
+    }
+    filtered.forEach(function(s) {
+      var eng = STORE.engins.find(function(e){ return e.id === s.enginId; });
+      if (!eng) return;
+      var et = eng.type || 'Autre';
+      if (s.huiles && s.huiles.length) {
+        s.huiles.forEach(function(h){ var q = +(h.qte||0); if (q>0) add(et, huileMotif(s,h), q); });
+      } else {
+        var lump = (+(s.hv68||0))+(+(s.s30||0))+(+(s.s50||0))+(+(s.w15w40||0))+(+(s.autran||0))+(+(s.w85w140||0));
+        if (lump>0) add(et, s.entretienFait ? 'Entretien' : 'Consommation', lump);
+      }
+    });
+    var grand = MOTIFS.reduce(function(a,m){ return a + totals[m]; }, 0);
+    if (grand <= 0) return '<p style="color:#999;font-style:italic;font-size:.78rem">Aucune donnée d\'huile enregistrée sur cette période.</p>';
+    var cards = MOTIFS.map(function(m){
+      var pct = grand>0 ? Math.round(totals[m]/grand*100) : 0;
+      return '<div style="background:#f9f6ef;border-radius:8px;padding:10px 6px;text-align:center;border-top:4px solid '+MOTIF_COLORS[m]+'"><div style="font-size:1.15rem;font-weight:800;color:'+MOTIF_COLORS[m]+'">'+totals[m].toFixed(1)+' L</div><div style="font-size:.68rem;color:#666;margin-top:2px">'+m+' — '+pct+'%</div></div>';
+    }).join('');
+    var motifRows = '<tbody>'+MOTIFS.map(function(m,i){
+      var pct = grand>0 ? Math.round(totals[m]/grand*100) : 0;
+      return '<tr style="background:'+(i%2===0?'#fff':'#fdf5ff')+'"><td style="'+TDL+';border-left:4px solid '+MOTIF_COLORS[m]+'">'+m+'</td><td style="'+TD+';font-weight:700;color:'+MOTIF_COLORS[m]+'">'+totals[m].toFixed(1)+' L</td><td style="'+TD+'">'+pct+'%</td><td style="padding:6px 10px;border:1px solid #eee"><div style="background:#eee;border-radius:3px;height:7px"><div style="background:'+MOTIF_COLORS[m]+';width:'+pct+'%;height:7px;border-radius:3px"></div></div></td></tr>';
+    }).join('')+'</tbody>';
+    var motifHdr = '<thead><tr><th style="'+THL+'">Motif</th><th style="'+TH+'">Total (L)</th><th style="'+TH+'">% du total</th><th style="'+TH+'">Barre</th></tr></thead>';
+    var etHdr = '<thead><tr><th style="'+THL+'">Type Engin</th>'+MOTIFS.map(function(m){return '<th style="'+TH+'">'+m+' (L)</th>';}).join('')+'<th style="'+TH+'">Total (L)</th></tr></thead>';
+    var etRows = '<tbody>'+Object.keys(byEngType).map(function(et,i){
+      var row = byEngType[et];
+      var rowTot = MOTIFS.reduce(function(a,m){ return a + (row[m]||0); }, 0);
+      return '<tr style="background:'+(i%2===0?'#fff':'#fdf5ff')+'"><td style="'+TDL+'">'+et.toUpperCase()+'</td>'+MOTIFS.map(function(m){ var v=row[m]||0; return '<td style="'+TD+(v>0?';font-weight:700;color:'+MOTIF_COLORS[m]:'')+'">'+( v>0?v.toFixed(1)+'L':'—')+'</td>'; }).join('')+'<td style="'+TD+';font-weight:700">'+rowTot.toFixed(1)+' L</td></tr>';
+    }).join('')+'</tbody>';
+    return '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'+cards+'</div>'
+      + tbl(motifHdr, motifRows)
+      + '<div style="font-size:.78rem;font-weight:700;color:#8e44ad;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.5px">📊 Répartition par type d\'engin</div>'
+      + tbl(etHdr, etRows);
+  }
   // --- S4: Pneus ---
   var pnEngWithData = entries.filter(function(g){return g.pneus.total>0;});
   var pnEngHdr  = '<thead><tr><th style="'+THL+'">Engin</th><th style="'+TH+'">Type</th><th style="'+TH+'">AVG</th><th style="'+TH+'">AVD</th><th style="'+TH+'">ARG</th><th style="'+TH+'">ARD</th><th style="'+TH+'">Total</th><th style="'+TH+'">Dur\u00e9e vie moy.</th></tr></thead>';
@@ -3387,6 +3439,9 @@ function generateReport() {
     // Section Huiles détaillées par type
     +sHead('Détail Consommation Huiles par Type 🛢','#8e44ad')
     +buildOilSection()+'</div>'
+    // Section Répartition des huiles par motif
+    +sHead('Répartition des Huiles par Motif 🛢','#8e44ad')
+    +buildOilMotifSection()+'</div>'
     // Analyse Consommation
     +sHead('Analyse Consommation — Gasoil & Huiles \uD83D\uDD0D','#1a5276')
     +buildAnalyseHtml(entries, byTypeMap, period)+'</div>'
