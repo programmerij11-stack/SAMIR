@@ -1212,6 +1212,11 @@
           <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
           <button class="btn btn-danger admin-only" onclick="resetAppData()"><i class="bi bi-trash"></i> Réinitialiser</button>
         </div>
+        <div class="mt-2" style="font-size:.8rem;color:#9a8f6a"><i class="bi bi-shield-lock"></i> Enregistrer/modifier demande le mot de passe (une fois par session). Supprimer, importer et réinitialiser sont réservés à l'administrateur avec mot de passe.</div>
+      </div>
+      <div class="card-dark mt-3 p-3 admin-only">
+        <h6 class="text-warning mb-2"><i class="bi bi-shield-check"></i> Copies de secours (avant suppression)</h6>
+        <div id="backupsList"></div>
       </div>
       <div class="card-dark mt-3 p-3">
         <div class="d-flex justify-content-between align-items-center mb-3">
