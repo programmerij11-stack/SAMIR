@@ -117,7 +117,7 @@ function doLogin() {
   }
   document.getElementById('loginError').style.display = 'block';
 }
-function doLogout() { CURRENT_ROLE = ''; CAN_SAISIE = true; sessionStorage.removeItem('user'); document.getElementById('appScreen').style.display = 'none'; document.getElementById('loginScreen').style.display = 'flex'; }
+function doLogout() { CURRENT_ROLE = ''; CAN_SAISIE = true; sessionStorage.removeItem('user'); sessionStorage.removeItem(SAISIE_UNLOCK_KEY); document.getElementById('appScreen').style.display = 'none'; document.getElementById('loginScreen').style.display = 'flex'; }
 function checkAuth() {
   var overlay = document.getElementById('loadingOverlay');
   try {
@@ -204,7 +204,75 @@ function toggleSidebar(forceClose) {
 // --- PERMISSION HELPER ---
 function saisieBtn(editCall, deleteCall) {
   if (!CAN_SAISIE) return '';
-  return '<button class="btn btn-sm btn-outline-light btn-sm-action" onclick="'+editCall+'"><i class="bi bi-pencil"></i></button> <button class="btn btn-sm btn-outline-danger btn-sm-action" onclick="'+deleteCall+'"><i class="bi bi-trash"></i></button>';
+  var h = '<button class="btn btn-sm btn-outline-light btn-sm-action" onclick="'+editCall+'"><i class="bi bi-pencil"></i></button>';
+  if (CURRENT_ROLE === 'admin') h += ' <button class="btn btn-sm btn-outline-danger btn-sm-action" onclick="'+deleteCall+'"><i class="bi bi-trash"></i></button>';
+  return h;
+}
+
+// --- SECURITE SAISIE / SUPPRESSION ---
+// Enregistrer/modifier : droit Saisie + mot de passe (demandé une fois par session).
+// Supprimer : réservé à l'admin, mot de passe demandé à chaque fois, copie de secours conservée.
+var SAISIE_UNLOCK_KEY = 'saisieUnlockedUntil';
+var SAISIE_UNLOCK_MIN = 30;
+function currentUserName() {
+  try { var s = JSON.parse(sessionStorage.getItem('user')||'null'); return s ? s.user : ''; } catch(e) { return ''; }
+}
+function verifyPassword(pwd) {
+  if (pwd === null || pwd === undefined) return false;
+  var u = currentUserName();
+  if (u === 'admin') return pwd === 'admin';
+  var found = STORE.users.find(function(x) { return x.username === u; });
+  return !!found && found.password === pwd;
+}
+function askPassword(msg) {
+  var pwd = prompt(msg || 'Confirmez votre mot de passe :');
+  if (pwd === null) return false;
+  if (!verifyPassword(pwd)) { alert('Mot de passe incorrect.'); return false; }
+  return true;
+}
+function requireSaisieAuth() {
+  if (!CAN_SAISIE) { alert('Vous n\'avez pas l\'autorisation de saisir.'); return false; }
+  var until = +(sessionStorage.getItem(SAISIE_UNLOCK_KEY)||0);
+  if (until && Date.now() < until) return true;
+  if (!askPassword('S\u00e9curit\u00e9 saisie \u2014 entrez votre mot de passe pour enregistrer :')) return false;
+  sessionStorage.setItem(SAISIE_UNLOCK_KEY, String(Date.now() + SAISIE_UNLOCK_MIN*60000));
+  return true;
+}
+function requireDeleteAuth(label) {
+  if (CURRENT_ROLE !== 'admin') { alert('Suppression r\u00e9serv\u00e9e \u00e0 l\'administrateur.'); return false; }
+  if (!askPassword('S\u00e9curit\u00e9 \u2014 mot de passe administrateur requis pour supprimer'+(label?' '+label:'')+' :')) return false;
+  backupBeforeDelete();
+  return true;
+}
+function backupBeforeDelete() {
+  try {
+    var list = JSON.parse(localStorage.getItem('parcEngins_backups')||'[]');
+    list.unshift({ at: new Date().toISOString(), user: currentUserName(), data: JSON.stringify(STORE) });
+    while (list.length > 5) list.pop();
+    localStorage.setItem('parcEngins_backups', JSON.stringify(list));
+  } catch(e) { console.warn('Sauvegarde de s\u00e9curit\u00e9 impossible', e); }
+}
+function renderBackups() {
+  var el = document.getElementById('backupsList'); if (!el) return;
+  var list = [];
+  try { list = JSON.parse(localStorage.getItem('parcEngins_backups')||'[]'); } catch(e) {}
+  if (!list.length) { el.innerHTML = '<span style="color:#888;font-size:.85rem">Aucune copie de secours (cr\u00e9\u00e9e automatiquement avant chaque suppression).</span>'; return; }
+  el.innerHTML = list.map(function(b, i) {
+    var n = 0; try { n = (JSON.parse(b.data).saisies||[]).length; } catch(e) {}
+    return '<div class="d-flex align-items-center gap-2 mb-1" style="font-size:.85rem"><i class="bi bi-shield-check text-success"></i> <span>'+b.at.replace('T',' ').slice(0,19)+'</span> <span style="color:#888">('+(b.user||'?')+', '+n+' saisies)</span> <button class="btn btn-sm btn-outline-warning py-0" onclick="restoreBackup('+i+')"><i class="bi bi-arrow-counterclockwise"></i> Restaurer</button></div>';
+  }).join('');
+}
+function restoreBackup(i) {
+  if (CURRENT_ROLE !== 'admin') { alert('R\u00e9serv\u00e9 \u00e0 l\'administrateur.'); return; }
+  var list = []; try { list = JSON.parse(localStorage.getItem('parcEngins_backups')||'[]'); } catch(e) {}
+  var b = list[i]; if (!b) return;
+  if (!confirm('Restaurer la copie du '+b.at.replace('T',' ').slice(0,19)+' ? Les donn\u00e9es actuelles seront remplac\u00e9es.')) return;
+  if (!askPassword('Mot de passe administrateur :')) return;
+  backupBeforeDelete();
+  var p = JSON.parse(b.data);
+  Object.keys(STORE).forEach(function(k) { if (Array.isArray(STORE[k])) STORE[k] = p[k] || []; });
+  saveData(); renderAll();
+  alert('Donn\u00e9es restaur\u00e9es.');
 }
 
 // --- ENGINS ---
@@ -221,6 +289,7 @@ function openEnginModal() {
   new bootstrap.Modal(document.getElementById('enginModal')).show();
 }
 function saveEngin() {
+  if (!requireSaisieAuth()) return;
   var id = document.getElementById('enginId').value || uid();
   var obj = { id:id, designation:document.getElementById('eDesignation').value, immatriculation:document.getElementById('eImmat').value, type:document.getElementById('eType').value, marque:document.getElementById('eMarque').value, modele:document.getElementById('eModele').value, serie:document.getElementById('eSerie').value, dateMec:document.getElementById('eDateMec').value, statut:document.getElementById('eStatut').value, compteur:+document.getElementById('eCompteur').value||0 };
   var idx = STORE.engins.findIndex(function(e) { return e.id === id; });
@@ -241,7 +310,7 @@ function editEngin(id) {
   document.getElementById('eCompteur').value = x.compteur;
   new bootstrap.Modal(document.getElementById('enginModal')).show();
 }
-function deleteEngin(id) { if (confirm('Supprimer cet engin ?')) { STORE.engins = STORE.engins.filter(function(e) { return e.id !== id; }); saveData(); renderEngins(); updateSelects(); } }
+function deleteEngin(id) { if (requireDeleteAuth('cet engin') && confirm('Supprimer cet engin ?')) { STORE.engins = STORE.engins.filter(function(e) { return e.id !== id; }); saveData(); renderEngins(); updateSelects(); } }
 
 // --- PERSONNEL ---
 function renderPersonnel() {
@@ -258,6 +327,7 @@ function openPersonnelModal() {
   new bootstrap.Modal(document.getElementById('personnelModal')).show();
 }
 function savePersonnel() {
+  if (!requireSaisieAuth()) return;
   var id = document.getElementById('personnelId').value || uid();
   var obj = { id:id, nom:document.getElementById('pNom').value, prenom:document.getElementById('pPrenom').value, fonction:document.getElementById('pFonction').value, equipe:document.getElementById('pEquipe').value, telephone:document.getElementById('pTel').value, affectation:document.getElementById('pAffectation').value, dateEmb:document.getElementById('pDateEmb').value };
   var idx = STORE.personnel.findIndex(function(p) { return p.id === id; });
@@ -273,7 +343,7 @@ function editPersonnel(id) {
   document.getElementById('pDateEmb').value = x.dateEmb;
   new bootstrap.Modal(document.getElementById('personnelModal')).show();
 }
-function deletePersonnel(id) { if (confirm('Supprimer ?')) { STORE.personnel = STORE.personnel.filter(function(p) { return p.id !== id; }); saveData(); renderPersonnel(); updateSelects(); } }
+function deletePersonnel(id) { if (requireDeleteAuth('ce personnel') && confirm('Supprimer ?')) { STORE.personnel = STORE.personnel.filter(function(p) { return p.id !== id; }); saveData(); renderPersonnel(); updateSelects(); } }
 
 // --- SELECTS ---
 function updateSelects() {
@@ -302,7 +372,7 @@ function renderSaisies(list) {
     var hasIncident = (x.huiles||[]).some(function(h){ return h.incident; });
     var huileCell = totalHuile.toFixed(1) + (hasIncident ? ' <span title="Incident huile déclaré" style="color:#dc3545;font-size:.8rem"><i class="bi bi-exclamation-triangle-fill"></i></span>' : '');
     return '<tr'+(hasIncident?' style="border-left:3px solid #dc3545"':'')+'>'+
-      '<td>'+(x.dateDebut||'-')+'</td><td>'+(eng?eng.designation.substring(0,20):'-')+'</td><td>'+(x.compteurDebut||'-')+'</td><td>'+(x.compteurFin||'-')+'</td><td><strong>'+(x.difference||'-')+'</strong></td><td>'+(x.mlf>0?(x.mlf+' m'):'-')+'</td><td>'+(x.gasoil||0)+'</td><td>'+huileCell+'</td><td>'+(x.nbArrets||0)+'</td><td>'+(x.heurePanne||0)+'</td><td><button class="btn btn-sm btn-outline-info btn-sm-action" onclick="showDetail(\''+x.id+'\')"><i class="bi bi-eye"></i></button> <button class="btn btn-sm btn-outline-light btn-sm-action" onclick="editSaisie(\''+x.id+'\')"><i class="bi bi-pencil"></i></button> <button class="btn btn-sm btn-outline-danger btn-sm-action" onclick="deleteSaisie(\''+x.id+'\')"><i class="bi bi-trash"></i></button></td></tr>';
+      '<td>'+(x.dateDebut||'-')+'</td><td>'+(eng?eng.designation.substring(0,20):'-')+'</td><td>'+(x.compteurDebut||'-')+'</td><td>'+(x.compteurFin||'-')+'</td><td><strong>'+(x.difference||'-')+'</strong></td><td>'+(x.mlf>0?(x.mlf+' m'):'-')+'</td><td>'+(x.gasoil||0)+'</td><td>'+huileCell+'</td><td>'+(x.nbArrets||0)+'</td><td>'+(x.heurePanne||0)+'</td><td><button class="btn btn-sm btn-outline-info btn-sm-action" onclick="showDetail(\''+x.id+'\')"><i class="bi bi-eye"></i></button> '+saisieBtn('editSaisie(\''+x.id+'\')','deleteSaisie(\''+x.id+'\')')+'</td></tr>';
   }).join('');
 }
 
@@ -1237,6 +1307,7 @@ function getInterventions() {
 
 // Save saisie
 function saveSaisie() {
+  if (!requireSaisieAuth()) return;
   if (!document.getElementById('sEngin').value) { alert('Sélectionnez un engin.'); return; }
   if (!document.getElementById('sDate').value) { alert('Sélectionnez une date.'); return; }
   var id = document.getElementById('saisieId').value || uid();
@@ -1366,8 +1437,8 @@ function saisieNav(dir) {
   document.getElementById('saisieNavInfo').textContent = 'Saisie ' + (saisieNavIdx+1) + '/' + STORE.saisies.length;
 }
 
-function deleteSaisie(id) { if (confirm('Supprimer ?')) { STORE.saisies = STORE.saisies.filter(function(s) { return s.id !== id; }); saveData(); renderSaisies(); newSaisie(); } }
-function deleteAllSaisies() { if (confirm('Supprimer TOUTES les saisies ?')) { STORE.saisies = []; saveData(); renderSaisies(); newSaisie(); } }
+function deleteSaisie(id) { if (requireDeleteAuth('cette saisie') && confirm('Supprimer cette saisie ?')) { STORE.saisies = STORE.saisies.filter(function(s) { return s.id !== id; }); saveData(); renderSaisies(); newSaisie(); } }
+function deleteAllSaisies() { if (requireDeleteAuth('TOUTES les saisies') && prompt('Tapez SUPPRIMER pour confirmer la suppression de TOUTES les saisies :') === 'SUPPRIMER') { STORE.saisies = []; saveData(); renderSaisies(); newSaisie(); } }
 
 function showDetail(id) {
   var x = STORE.saisies.find(function(s) { return s.id === id; }); if (!x) return;
@@ -1828,13 +1899,14 @@ function renderAffectations() {
   }).join('');
 }
 function saveAffectation() {
+  if (!requireSaisieAuth()) return;
   var pId = document.getElementById('affectPersonnel').value;
   var eId = document.getElementById('affectEngin').value;
   if (!pId || !eId) { alert('Sélectionnez personnel et engin.'); return; }
   STORE.affectations.push({ id: uid(), personnelId: pId, enginId: eId, poste: document.getElementById('affectPoste').value, equipe: document.getElementById('affectEquipe').value, dateDebut: document.getElementById('affectDate').value || new Date().toISOString().slice(0,10) });
   saveData(); renderAffectations();
 }
-function deleteAffectation(id) { if (confirm('Supprimer ?')) { STORE.affectations = STORE.affectations.filter(function(a) { return a.id !== id; }); saveData(); renderAffectations(); } }
+function deleteAffectation(id) { if (requireDeleteAuth('cette affectation') && confirm('Supprimer ?')) { STORE.affectations = STORE.affectations.filter(function(a) { return a.id !== id; }); saveData(); renderAffectations(); } }
 
 // --- PANNES ---
 function updatePanneSelects() {
@@ -1853,6 +1925,7 @@ function renderPannes() {
   }).join('');
 }
 function savePanne() {
+  if (!requireSaisieAuth()) return;
   var id = document.getElementById('panneId').value || uid();
   var obj = { id:id, date:document.getElementById('panneDate').value, enginId:document.getElementById('panneEngin').value, type:document.getElementById('panneType').value, mecanicienId:document.getElementById('panneMecanicien').value, duree:+document.getElementById('panneDuree').value||0, statut:document.getElementById('panneStatut').value, description:document.getElementById('panneDesc').value };
   var idx = STORE.pannes.findIndex(function(p) { return p.id === id; });
@@ -1872,7 +1945,7 @@ function editPanne(id) {
   document.getElementById('panneDesc').value = p.description || '';
   navTo('pannes');
 }
-function deletePanne(id) { if (confirm('Supprimer ?')) { STORE.pannes = STORE.pannes.filter(function(p) { return p.id !== id; }); saveData(); renderPannes(); } }
+function deletePanne(id) { if (requireDeleteAuth('cette panne') && confirm('Supprimer ?')) { STORE.pannes = STORE.pannes.filter(function(p) { return p.id !== id; }); saveData(); renderPannes(); } }
 
 // --- MAINTENANCE ---
 function updateMaintSelects() {
@@ -1905,6 +1978,7 @@ function renderMaintenance() {
   if((document.getElementById('maintGanttView')||{}).style&&document.getElementById('maintGanttView').style.display!=='none') renderMaintenanceGantt(data);
 }
 function saveMaintenance() {
+  if (!requireSaisieAuth()) return;
   var id = document.getElementById('maintId').value || uid();
   var obj = { id:id, date:document.getElementById('maintDate').value, dateFin:document.getElementById('maintDateFin').value, enginId:document.getElementById('maintEngin').value, type:document.getElementById('maintType').value, compteur:+document.getElementById('maintCompteur').value||0, description:document.getElementById('maintDesc').value, statut:document.getElementById('maintStatut').value };
   var idx = STORE.maintenance.findIndex(function(m) { return m.id === id; });
@@ -2017,7 +2091,7 @@ function renderMaintenanceGantt(filteredData) {
     '<div style="display:flex;border-bottom:2px solid rgba(212,175,55,.3)"><div style="min-width:'+LW+'px;padding:2px 8px;font-size:.65rem;font-weight:700;color:#d4af37;border-right:1px solid rgba(212,175,55,.12);background:#0d0b00">Engin</div><div style="flex:1;position:relative;height:18px">'+daysHtml+'</div></div>'+
     rowsHtml+'</div></div>'+legend;
 }
-function deleteMaintenance(id) { if (confirm('Supprimer ?')) { STORE.maintenance = STORE.maintenance.filter(function(m) { return m.id !== id; }); saveData(); renderMaintenance(); } }
+function deleteMaintenance(id) { if (requireDeleteAuth('cette maintenance') && confirm('Supprimer ?')) { STORE.maintenance = STORE.maintenance.filter(function(m) { return m.id !== id; }); saveData(); renderMaintenance(); } }
 
 // --- CARBURANT ---
 function updateCarbSelects() {
@@ -2032,6 +2106,7 @@ function renderCarburant() {
   }).join('');
 }
 function saveCarburant() {
+  if (!requireSaisieAuth()) return;
   var id = document.getElementById('carbId').value || uid();
   var obj = { id:id, date:document.getElementById('carbDate').value, enginId:document.getElementById('carbEngin').value, type:document.getElementById('carbType').value, quantite:+document.getElementById('carbQte').value||0, compteur:+document.getElementById('carbCompteur').value||0, observations:document.getElementById('carbObs').value };
   var idx = STORE.carburant.findIndex(function(c) { return c.id === id; });
@@ -2050,7 +2125,7 @@ function editCarburant(id) {
   document.getElementById('carbObs').value = c.observations || '';
   navTo('carburant');
 }
-function deleteCarburant(id) { if (confirm('Supprimer ?')) { STORE.carburant = STORE.carburant.filter(function(c) { return c.id !== id; }); saveData(); renderCarburant(); } }
+function deleteCarburant(id) { if (requireDeleteAuth('ce carburant') && confirm('Supprimer ?')) { STORE.carburant = STORE.carburant.filter(function(c) { return c.id !== id; }); saveData(); renderCarburant(); } }
 
 // --- TARIFS ---
 function renderTarifs() {
@@ -2068,6 +2143,7 @@ function renderTarifs() {
   }).join('');
 }
 function saveTarif() {
+  if (!requireSaisieAuth()) return;
   var produit = document.getElementById('tarifProduit').value;
   var prix = +document.getElementById('tarifPrix').value;
   var dateEffet = document.getElementById('tarifDate').value;
@@ -2078,7 +2154,7 @@ function saveTarif() {
   document.getElementById('tarifDate').value = '';
   saveData(); renderTarifs();
 }
-function deleteTarif(id) { if (confirm('Supprimer ?')) { STORE.tarifs = STORE.tarifs.filter(function(t) { return t.id !== id; }); saveData(); renderTarifs(); } }
+function deleteTarif(id) { if (requireDeleteAuth('ce tarif') && confirm('Supprimer ?')) { STORE.tarifs = STORE.tarifs.filter(function(t) { return t.id !== id; }); saveData(); renderTarifs(); } }
 
 // --- TARIFS PNEUS ---
 function toggleAutreDimension() {
@@ -2089,6 +2165,7 @@ function toggleAutreDimension() {
   if (sel.value !== 'autre') document.getElementById('pneuAutreDimension').value = '';
 }
 function savePneuTarif() {
+  if (!requireSaisieAuth()) return;
   var dimSel = document.getElementById('pneuDimension').value;
   var dimAutre = document.getElementById('pneuAutreDimension').value.trim();
   var dimension = dimSel === 'autre' ? dimAutre : dimSel;
@@ -2133,7 +2210,7 @@ function renderPneuTarifs() {
       : '<tr><td colspan="6" class="text-center text-muted p-3">Aucun historique.</td></tr>';
   }
 }
-function deletePneuTarif(id) { if (confirm('Supprimer ce tarif pneu ?')) { STORE.pneuTarifs = STORE.pneuTarifs.filter(function(t){ return t.id !== id; }); saveData(); renderPneuTarifs(); } }
+function deletePneuTarif(id) { if (requireDeleteAuth('ce tarif pneu') && confirm('Supprimer ce tarif pneu ?')) { STORE.pneuTarifs = STORE.pneuTarifs.filter(function(t){ return t.id !== id; }); saveData(); renderPneuTarifs(); } }
 function getPneuTarifActuel(dimension, fournisseur) {
   var match = null;
   STORE.pneuTarifs.forEach(function(t) {
@@ -2210,6 +2287,7 @@ function updateMensuelCharts(prefix, daysInMonth, engins) {
 
 // --- ADMIN ---
 function updateAdmin() {
+  renderBackups();
   var ae = document.getElementById('adminTotalEngins');
   if (ae) ae.textContent = STORE.engins.length;
   var ap = document.getElementById('adminTotalPersonnel');
@@ -2228,6 +2306,7 @@ function exportJSON() {
 }
 function importJSON(ev) {
   var file = ev.target.files[0]; if (!file) return;
+  if (!requireDeleteAuth('et remplacer les donn\u00e9es par un import')) { ev.target.value=''; return; }
   var reader = new FileReader();
   reader.onload = function(e) {
     try {
@@ -2296,7 +2375,7 @@ function editUser(id) {
   document.getElementById('uCanSaisie').checked = u.canSaisie === true;
   new bootstrap.Modal(document.getElementById('userModal')).show();
 }
-function deleteUser(id) { if (confirm('Supprimer cet utilisateur ?')) { STORE.users = STORE.users.filter(function(u) { return u.id !== id; }); saveData(); renderUsers(); } }
+function deleteUser(id) { if (requireDeleteAuth('cet utilisateur') && confirm('Supprimer cet utilisateur ?')) { STORE.users = STORE.users.filter(function(u) { return u.id !== id; }); saveData(); renderUsers(); } }
 
 // --- EXTRACTION ---
 function updateExtSelects() {
@@ -2481,6 +2560,7 @@ function renderBudgetFormRows() {
   }).join('');
 }
 function saveBudgets() {
+  if (!requireSaisieAuth()) return;
   var rows = document.getElementById('budgetFormBody').querySelectorAll('tr');
   rows.forEach(function(r){
     var t = r.querySelector('.bgt-hm').dataset.type;
@@ -3706,6 +3786,8 @@ function renderAll() {
 
 // --- RESET DATA ---
 function resetAppData() {
+  if (!requireDeleteAuth('TOUTES les données')) return;
+  if (prompt('Tapez REINITIALISER pour confirmer :') !== 'REINITIALISER') return;
   if (confirm('Voulez-vous réinitialiser toutes les données ? Les données actuelles seront remplacées par les données de démonstration.')) {
     localStorage.removeItem('parcEngins');
     STORE.engins = []; STORE.personnel = []; STORE.saisies = []; STORE.affectations = []; STORE.pannes = []; STORE.maintenance = []; STORE.carburant = []; STORE.tarifs = [];
