@@ -1128,6 +1128,7 @@
         <li class="nav-item"><a class="nav-link active" href="#" onclick="return spSwitchTab('Ref',this)"><i class="bi bi-tag-fill"></i> Par R&eacute;f&eacute;rence</a></li>
         <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Type',this)"><i class="bi bi-collection-fill"></i> Par Type d&apos;engin</a></li>
         <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Engin',this)"><i class="bi bi-truck-front-fill"></i> Par Engin</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Cycle',this)"><i class="bi bi-arrow-left-right"></i> Pneus en cours / chang&eacute;s</a></li>
         <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Histo',this)"><i class="bi bi-clock-history"></i> Historique Complet</a></li>
         <li class="nav-item"><a class="nav-link" href="#" onclick="return spSwitchTab('Graph',this)"><i class="bi bi-bar-chart-fill"></i> Graphiques</a></li>
       </ul>
@@ -1155,6 +1156,22 @@
           <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
             <thead><tr><th>Engin</th><th>Type</th><th>Position</th><th>R&eacute;f&eacute;rence</th><th>Fournisseur</th><th>Total Heures</th><th>Nb Chgts</th><th>Prix total (DA)</th><th>Prix/HM (DA/h)</th><th>Dernier chgt</th><th>&Eacute;tat</th></tr></thead>
             <tbody id="spEnginTable"><tr><td colspan="11" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="spTabCycle" style="display:none">
+        <div class="card-dark p-3">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <h6 class="text-warning mb-0"><i class="bi bi-arrow-left-right"></i> Pneus en cours et pneus chang&eacute;s (par engin et position)</h6>
+            <div class="d-flex align-items-center gap-2">
+              <select id="spCycleStatut" class="form-select form-select-sm" style="width:auto" onchange="renderPneuCycleTable()"><option value="">Tous</option><option value="En cours">En cours</option><option value="Chang&eacute;">Chang&eacute;s</option></select>
+              <button class="btn btn-sm btn-outline-warning" onclick="exportPneuCycleCSV()"><i class="bi bi-download"></i> CSV</button>
+            </div>
+          </div>
+          <div id="spCycleKpis" class="row g-2 mb-2"></div>
+          <div class="table-responsive"><table class="table table-dark table-hover table-sm mb-0">
+            <thead><tr><th>Engin</th><th>Position</th><th>R&eacute;f. pneu</th><th>Marque</th><th style="color:#27ae60">Date changement</th><th style="color:#27ae60" class="text-center">Cpt changement</th><th style="color:#e74c3c" class="text-center">Cpt d&eacute;changement</th><th style="color:#e74c3c">Date d&eacute;changement</th><th>Dur&eacute;e de vie (h)</th><th>Statut</th></tr></thead>
+            <tbody id="spCycleTable"><tr><td colspan="10" class="text-center text-muted py-3">Cliquez sur Analyser</td></tr></tbody>
           </table></div>
         </div>
       </div>
