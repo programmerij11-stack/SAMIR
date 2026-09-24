@@ -3726,7 +3726,7 @@ function navToSuiviPneus() {
   if (spEngin) spEngin.innerHTML = '<option value="">Tous les engins</option>'+STORE.engins.map(function(e){return '<option value="'+e.id+'">'+e.designation+'</option>';}).join('');
 }
 function spSwitchTab(tab, el) {
-  ['Ref','Type','Engin','Histo','Graph'].forEach(function(t){ var d=document.getElementById('spTab'+t); if(d) d.style.display=(t===tab?'':'none'); });
+  ['Ref','Type','Engin','Cycle','Histo','Graph'].forEach(function(t){ var d=document.getElementById('spTab'+t); if(d) d.style.display=(t===tab?'':'none'); });
   document.querySelectorAll('#spTabs .nav-link').forEach(function(l){l.classList.remove('active');});
   if (el) el.classList.add('active');
   if (tab==='Graph') setTimeout(function(){ renderPneuMarqueCharts(_pneuMarqueMap); }, 60);
@@ -3955,6 +3955,133 @@ function runSuiviPneus() {
   // Graphiques par marque
   _pneuMarqueMap = marqueMap;
   renderPneuMarqueCharts(marqueMap);
+  // Pneus en cours / changés
+  _pneuCycleList = buildPneuCycles({dateDeb:dateDeb, dateFin:dateFin, type:typeF, engin:enginF, ref:refF});
+  renderPneuCycleTable();
+}
+
+// Cycle de vie d'un pneu : montage (statut "Changé" sur une saisie) jusqu'au prochain
+// changement sur la même position du même engin (= déchangement). Sans déchangement, le pneu est "En cours".
+var _pneuCycleList = [];
+function buildPneuCycles(f) {
+  f = f || {};
+  var pPos = ['pneuAvg','pneuAvd','pneuArg','pneuArd'];
+  var pLbl = {pneuAvg:'AVG',pneuAvd:'AVD',pneuArg:'ARG',pneuArd:'ARD'};
+  var saisies = STORE.saisies.slice().sort(function(a,b){
+    var da=a.dateDebut||'', db=b.dateDebut||'';
+    if (da!==db) return da<db?-1:1;
+    return (+(a.compteurFin||0))-(+(b.compteurFin||0));
+  });
+  var open = {}; // enginId_pos => cycle en cours
+  var lastCpt = {}; // enginId => {cpt, date} dernier compteur connu
+  var cycles = [];
+  saisies.forEach(function(s) {
+    var eng = STORE.engins.find(function(e){return e.id===s.enginId;}); if(!eng) return;
+    var cpt = +(s.compteurFin||0), date = s.dateDebut||'';
+    if (cpt >= (lastCpt[s.enginId]?lastCpt[s.enginId].cpt:0)) lastCpt[s.enginId] = {cpt:cpt, date:date};
+    pPos.forEach(function(pos) {
+      var pn = s[pos]; if(!pn) return;
+      var key = s.enginId+'_'+pos;
+      var ref = (pn.ref||'').trim();
+      if (pn.statut!=='Chang\u00e9') {
+        // Pneu d\u00e9j\u00e0 mont\u00e9 (r\u00e9f. saisie sans changement) : ouvre un cycle "montage initial"
+        if (!open[key] && ref.length>=3) {
+          var c0 = {
+            enginId: eng.id, eng: eng.designation, type: eng.type||'\u2014', pos: pLbl[pos],
+            ref: ref, marque: pneuMarque(pn), fourn: pn.fourn||'\u2014', prix: +(pn.prix||0),
+            dateChangement: date, cptChangement: (+(s.compteurDebut||0) || cpt || null), initial: true,
+            dateDechangement: '', cptDechangement: null, dureeVie: null, statut: 'En cours', etatFin: ''
+          };
+          cycles.push(c0); open[key] = c0;
+        }
+        return;
+      }
+      var prev = open[key];
+      if (prev) {
+        prev.dateDechangement = date;
+        prev.cptDechangement = cpt;
+        prev.dureeVie = (prev.cptChangement && cpt>prev.cptChangement) ? Math.round(cpt-prev.cptChangement) : (prev.cptChangement ? 0 : null);
+        prev.statut = 'Chang\u00e9';
+        prev.etatFin = pn.etat||'';
+      }
+      var c = {
+        enginId: eng.id, eng: eng.designation, type: eng.type||'\u2014', pos: pLbl[pos],
+        ref: ref || '\u2014', marque: pneuMarque(pn), fourn: pn.fourn||'\u2014', prix: +(pn.prix||0),
+        dateChangement: date, cptChangement: cpt, initial: false,
+        dateDechangement: '', cptDechangement: null, dureeVie: null, statut: 'En cours', etatFin: ''
+      };
+      cycles.push(c);
+      open[key] = c;
+    });
+  });
+  // Pneus encore montés : durée de vie = dernier compteur connu de l'engin − compteur de montage
+  Object.keys(open).forEach(function(key) {
+    var c = open[key];
+    var lc = lastCpt[c.enginId];
+    c.dureeVie = (lc && c.cptChangement && lc.cpt>c.cptChangement) ? Math.round(lc.cpt-c.cptChangement) : (c.cptChangement ? 0 : null);
+    c.dernierCpt = lc ? lc.cpt : c.cptChangement;
+  });
+  return cycles.filter(function(c) {
+    if (f.engin && c.enginId!==f.engin) return false;
+    if (f.type && c.type!==f.type) return false;
+    if (f.ref && c.ref.toLowerCase().indexOf(f.ref)===-1) return false;
+    if (f.dateDeb && c.dateChangement < f.dateDeb) return false;
+    if (f.dateFin && c.dateChangement > f.dateFin) return false;
+    return true;
+  });
+}
+function renderPneuCycleTable() {
+  var tb = document.getElementById('spCycleTable'); if(!tb) return;
+  var stF = (document.getElementById('spCycleStatut')||{}).value || '';
+  var list = _pneuCycleList.filter(function(c){ return !stF || c.statut===stF; });
+  list.sort(function(a,b){
+    if (a.statut!==b.statut) return a.statut==='En cours'?-1:1;
+    if (a.eng!==b.eng) return a.eng<b.eng?-1:1;
+    if (a.pos!==b.pos) return a.pos<b.pos?-1:1;
+    return b.dateChangement<a.dateChangement?-1:1;
+  });
+  var nbEnCours = _pneuCycleList.filter(function(c){return c.statut==='En cours';}).length;
+  var changes = _pneuCycleList.filter(function(c){return c.statut!=='En cours';});
+  var dvMoy = changes.length ? Math.round(changes.reduce(function(a,c){return a+(c.dureeVie||0);},0)/changes.length) : 0;
+  var kp = document.getElementById('spCycleKpis');
+  if (kp) kp.innerHTML = [
+    ['bi-play-circle-fill','#27ae60',nbEnCours,'Pneus en cours'],
+    ['bi-arrow-repeat','#e74c3c',changes.length,'Pneus chang\u00e9s'],
+    ['bi-speedometer','#3498db',dvMoy+' h','Dur\u00e9e vie moy. (chang\u00e9s)']
+  ].map(function(k){return '<div class="col-6 col-md-3"><div class="kpi-card" style="border-color:'+k[1]+'40"><div class="kpi-value" style="color:'+k[1]+';font-size:1rem"><i class="bi '+k[0]+'"></i> '+k[2]+'</div><div class="kpi-label">'+k[3]+'</div></div></div>';}).join('');
+  var fmt = function(n){ return (n===null||n===undefined) ? '<span style="color:#888">\u2014</span>' : Number(n).toLocaleString('fr-FR'); };
+  tb.innerHTML = list.length ? list.map(function(c,i){
+    var enCours = c.statut==='En cours';
+    var badge = enCours
+      ? '<span class="badge bg-success"><i class="bi bi-play-fill"></i> En cours</span>'
+      : '<span class="badge bg-danger"><i class="bi bi-arrow-repeat"></i> Chang\u00e9'+(c.etatFin?' \u2014 '+c.etatFin:'')+'</span>';
+    var dv = c.dureeVie!==null ? '<strong style="color:'+(enCours?'#f39c12':'#3498db')+'">'+c.dureeVie.toLocaleString('fr-FR')+' h</strong>'+(enCours?'<div style="font-size:.68rem;color:#888">au cpt '+fmt(c.dernierCpt)+'</div>':'') : fmt(null);
+    return '<tr style="background:'+(i%2===0?'rgba(255,255,255,.03)':'transparent')+'">'
+      +'<td><strong style="color:#d4af37">'+c.eng+'</strong><div style="font-size:.72rem;color:#888">'+c.type+'</div></td>'
+      +'<td style="font-weight:700;color:#16a085">'+c.pos+'</td>'
+      +'<td style="color:#d4af37;font-weight:600">'+c.ref+'</td>'
+      +'<td style="color:#e67e22;font-weight:600">'+c.marque+'</td>'
+      +'<td style="white-space:nowrap;color:#27ae60">'+(c.dateChangement||'\u2014')+(c.initial?'<div style="font-size:.68rem;color:#888">d\u00e9j\u00e0 mont\u00e9 (1re saisie)</div>':'')+'</td>'
+      +'<td class="text-center" style="color:#27ae60;font-weight:700">'+fmt(c.cptChangement)+'</td>'
+      +'<td class="text-center" style="color:#e74c3c;font-weight:700">'+fmt(c.cptDechangement)+'</td>'
+      +'<td style="white-space:nowrap;color:#e74c3c">'+(c.dateDechangement||'<span style="color:#888">\u2014</span>')+'</td>'
+      +'<td>'+dv+'</td>'
+      +'<td>'+badge+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="10" class="text-center text-muted py-3">Aucun pneu trouv\u00e9 (les pneus sont d\u00e9tect\u00e9s \u00e0 partir des saisies avec statut \u00ab Chang\u00e9 \u00bb).</td></tr>';
+}
+function exportPneuCycleCSV() {
+  var stF = (document.getElementById('spCycleStatut')||{}).value || '';
+  var list = _pneuCycleList.filter(function(c){ return !stF || c.statut===stF; });
+  if (!list.length) { alert('Cliquez d\'abord sur Analyser.'); return; }
+  var lines = ['Engin;Type;Position;Référence pneu;Marque;Fournisseur;Prix;Date changement;Compteur changement;Compteur déchangement;Date déchangement;Durée de vie (h);Statut;État;Origine'];
+  list.forEach(function(c) {
+    lines.push([c.eng, c.type, c.pos, c.ref, c.marque, c.fourn, c.prix||'', c.dateChangement, c.cptChangement, c.cptDechangement===null?'':c.cptDechangement, c.dateDechangement, c.dureeVie===null?'':c.dureeVie, c.statut, c.etatFin, c.initial?'Déjà monté (1re saisie)':'Changement'].join(';'));
+  });
+  var blob = new Blob(['\ufeff'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download='pneus_cycles_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // Pre-charger les utilisateurs depuis localStorage avant l'écran de login
